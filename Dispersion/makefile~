@@ -1,0 +1,31 @@
+CC=g++
+LD=g++
+CFLAGS=-O3 -pedantic
+
+%.o: %.cpp
+	$(CC) -c $(CFLAGS) $<
+
+ALL: matrix readwrite complextest writedowntest dispersion plotdispersion interpolation
+
+matrix: matrix.o
+	    $(LD) $(LDFLAGS) -o matrix matrix.o -lgsl -lgslcblas -lm
+	    
+readwrite: readwrite.o
+	    $(LD) $(LDFLAGS) -o readwrite readwrite.o -lgsl -lgslcblas -lm
+
+complextest: complextest.o
+	    $(LD) $(LDFLAGS) -o complextest complextest.o -lgsl -lgslcblas -lm
+
+writedowntest: writedowntest.o
+	    $(LD) $(LDFLAGS) -o writedowntest writedowntest.o -lgsl -lgslcblas -lm
+	    
+dispersion: dispersion.o
+	    $(LD) $(LDFLAGS) -o dispersion dispersion.o -lgsl -lgslcblas -lm
+
+plotdispersion: plotdispersion.o
+	    $(LD) $(LDFLAGS) -o plotdispersion plotdispersion.o -lgsl -lgslcblas -lm
+
+interpolation: interpolation.o
+	    $(LD) $(LDFLAGS) -o interpolation interpolation.o -lgsl -lgslcblas -lm
+
+	    

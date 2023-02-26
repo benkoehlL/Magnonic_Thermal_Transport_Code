@@ -30,3 +30,18 @@
 *.exe
 *.out
 *.app
+
+# results
+/Electric field heterostructure/Angleplot
+/Electric field heterostructure/Texture
+/Selfenergy/Bfieldthermalconductivity
+/Selfenergy/interpolatedlifetime
+/Selfenergy/interpolatedlifetimeplot
+/Selfenergy/selfenergy
+/Selfenergy/SelfenergyBconst
+/Selfenergy/selfenergyplot
+/Selfenergy/Thermalconductivity
+/Selfenergy/vertex
+/stripey/stripey honeycomb/eigenvector
+/stripey/stripey square/eigenvector
+

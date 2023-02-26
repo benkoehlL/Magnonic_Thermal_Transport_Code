@@ -1,0 +1,97 @@
+%Copyright 2018 Niklas Casper
+
+%Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+%The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+%THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+
+%standalone image
+\documentclass{standalone}
+
+%tikz
+\usepackage{tikz}
+
+%PGFPlot
+\usepackage{pgfplots}
+
+%PGFPlot table
+\usepackage{pgfplotstable}
+
+%ifthenelse
+\usepackage{ifthen}
+
+%calc
+\usetikzlibrary{calc}
+
+%Shadow
+\usetikzlibrary{shadows, shadows.blur}
+
+%Arrow head
+\tikzset{>=latex}
+
+%colors
+\definecolor{tubsred}{RGB}{190, 29, 60}
+\definecolor{tubsdunkelblau}{RGB}{51, 101, 121}
+
+\begin{document}
+
+\begin{tikzpicture}[scale=1]
+%Length of arrow
+\def\ArrowLength{0.3}
+
+%Size of spin bubble
+\def\BubbleSize{1.5}
+
+%Load File
+\pgfplotstableread[header=false]{\jobname.dat}{/PlotSpintexture/SpinTexture99cJxsize50ysize30fieldsize0.dat}
+
+%Determine no. of rows
+\pgfplotstablegetrowsof{/PlotSpintexture/SpinTexture99cJxsize50ysize30fieldsize0.dat}
+\pgfmathsetmacro{\rows}{\pgfplotsretval}
+\pgfmathsetmacro{\r}{\rows-1}
+
+%Determine no. of cols
+\pgfplotstablegetcolsof{/PlotSpintexture/SpinTexture99cJxsize50ysize30fieldsize0.dat}
+\pgfmathsetmacro{\cols}{\pgfplotsretval}
+\pgfmathsetmacro{\c}{\cols-1}
+
+%Loop over lattice
+\foreach \x in {0,...,\r}{
+	\foreach \y in {0,...,\c}{
+		%plot square lattice
+		%x-bonds
+		\ifnum \x<\r{
+			\draw[gray, ultra thin] (\x,\y) -- (\x+1,\y);
+		}\fi
+		\ifnum \y<\c{
+			\draw[gray, ultra thin] (\x,\y) -- (\x,\y+1);
+		}\fi		
+	
+		%read in angles
+		\pgfplotstablegetelem{\x}{[index]\y}\of\data
+		
+		%if input data is in radian
+		\def\Winkel{deg(\pgfplotsretval)}
+		%if input data is in degree
+		%\def\Winkel{\pgfplotsretval}
+
+		%calculate new arrow
+		\pgfmathsetmacro{\Cos}{cos(\Winkel)*(\ArrowLength)}
+		\pgfmathsetmacro{\Sin}{sin(\Winkel)*(\ArrowLength)}
+
+		%draw arrow
+		\draw[->,tubsred, thick] (\x-\Cos,\y-\Sin) -- (\x+\Cos,\y+\Sin);
+
+		%bubbles
+		\node[draw,circle,inner sep=\BubbleSize pt,fill, draw=tubsdunkelblau ,outer color=tubsdunkelblau, inner color=white, blur shadow={shadow xshift=0ex, shadow yshift=0ex, shadow blur radius=0.15ex}] at (\x,\y) {};
+	}
+}
+
+%make some phantom marks to have equal size pictures
+\node at (-\ArrowLength,-\ArrowLength) {\phantom{0}};
+\node at (\r+\ArrowLength,\c+\ArrowLength) {\phantom{0}};
+
+\end{tikzpicture}
+\end{document}
