@@ -35,31 +35,37 @@ int main(){
     for(int t=1;t<4;t++){
     T = t*0.1;
     ostringstream of;
-    of << "Drudeweightoffield/Tdepscat/T" << T*100 << "cJ/drudeweightxsize" 
-        << xsize << "ysize" << ysize << "fieldsize" << fieldsize << ".dat";
+    of << "Drudeweightoffield/Tdepscat/T" << T*100 << "cJ/drudeweightxsize" << xsize << "ysize" << ysize << "fieldsize" << fieldsize << ".dat";
     ofstream writefield(of.str().c_str());//add when using binary format: ,ios_base::binary
     
-    for(int count=0;count<=(int)(Dmax/Dincrement)+1;count++){
-        D = count*Dincrement;
-        for(int x=0;x<xsize;x++){
-            for(int y=0;y<ysize;y++){
-                if(x>=freefieldsize && x<(freefieldsize+fieldsize)){
-                    parameter[x*ysize+y] = D;
+    for(int count=1;count<=Dmax*100/*+1*/;count++){
+        D = count*0.01;
+        for(int i=0;i<xsize;i++){
+            for(int j=0;j<ysize;j++){
+                if(i>=freefieldsize && i<(freefieldsize+fieldsize)){
+                    if(i==freefieldsize && j==0){
+                        parameter[i*ysize+j] = -D;
+                    }
+                    else if(i!=freefieldsize && j==0){
+                        parameter[i*ysize+j] = (-1)*parameter[(i-1)*ysize+j];
+                    }
+                    else{
+                        parameter[i*ysize+j] = (-1)*parameter[i*ysize+j-1];
+                    }
                 }
                 else{
-                    parameter[x*ysize+y] = 0.0;
+                    parameter[i*ysize+j] = 0.0;
                 }
             }
         }
         ostringstream fin1;
-        fin1 << "Texture/xsize" << xsize << "ysize" << ysize << "fieldsize" 
-            << fieldsize << "/textureD" << D*100 << "cJxsize_simplex.dat";
+        fin1 << "Texture/textureD" << D*100 << "cJxsize" << xsize << "ysize" << ysize << "fieldsize" << fieldsize << ".dat";
         ifstream read1(fin1.str().c_str(),ios_base::binary);
         
         //read texture
         for(int x=0;x<xsize;x++){
             for(int y=0;y<ysize;y++){
-                read1.seekg((x*ysize+y+systemsize)*sizeof(double));
+                read1.seekg((x*ysize+y)*sizeof(double));
                 read1.read((char*)& texture[x*ysize+y], sizeof(double));                   
             }
         }
@@ -72,6 +78,8 @@ int main(){
         gsl_matrix_set_zero(energydensityX);
         gsl_matrix_set_zero(energydensityY);
         gsl_matrix_set_zero(hamiltonian);
+        
+        
         
         for(int i=0;i<xsize;i++){
             for(int j=0;j<ysize;j++){
@@ -86,8 +94,8 @@ int main(){
                 gsl_matrix_add(energydensityY,helpmatrixY);
             }
         }
-        /*if(count==Dmax*100){
-        //if(count==1){
+        //if(count==(int)(Dmax/Dincrement)/1000){
+        /*if(count==1){
             for(int x=0;x<2*systemsize;x++){
                 for(int y=0;y<2*systemsize;y++){
                     cout << gsl_matrix_get(hamiltonian,x,y) << '\t';
@@ -114,605 +122,209 @@ int main(){
         
         for(int x=0;x<xsize;x++){
             for(int y=0;y<ysize;y++){
-                int site,xnegneighbour,xposneighbour,ynegneighbour,yposneighbour;
+                int xbefore,xafter,ybefore,yafter;
                 double xprefactora,xprefactorb,yprefactora,yprefactorb;
-                
-                site = x*ysize+y;
-                xnegneighbour = (x-1)*ysize+y;
-                xposneighbour = (x+1)*ysize+y;
-                ynegneighbour = x*ysize+y-1;
-                yposneighbour = x*ysize+y+1;
-                
+
+                if(x==0){
+                    xbefore = xsize-1;
+                    xafter = x+1;
+                }
+                else{
+                    xbefore = x-1;
+                    xafter = (x+1)%xsize;
+                }
+                    
                 if(y==0){
-                    ynegneighbour = x*ysize+ysize-1;
+                    ybefore = ysize-1;
+                    yafter = y+1;
+                }
+                else{
+                    ybefore = y-1;
+                    yafter = (y+1)%ysize;
                 }
                 
-                if(y==ysize-1){
-                    yposneighbour = x*ysize;
-                }
-                
-                if(x<xsize-1){
-                    xprefactora = cos(texture[site]-texture[xposneighbour]+M_PI) 
-                            + parameter[site]*sin(texture[site]-texture[xposneighbour]+M_PI);
-                }
-                
-                if(x>0){
-                    xprefactorb = cos(texture[xnegneighbour]-texture[site]+M_PI)
-                            + parameter[xnegneighbour]*sin(texture[xnegneighbour]-texture[site]+M_PI);
-                }
-                yprefactora = cos(texture[site]-texture[yposneighbour]+M_PI);
-                yprefactorb = cos(texture[ynegneighbour]-texture[site]+M_PI);
+                xprefactora = cos(texture[x*ysize+y]-texture[xafter*ysize+y])- parameter[x*ysize+y]*sin(texture[x*ysize+y]-texture[xafter*ysize+y]);
+                xprefactorb = cos(texture[x*ysize+y]-texture[xbefore*ysize+y])-parameter[x*ysize+y]*sin(texture[x*ysize+y]-texture[xbefore*ysize+y]);
+                yprefactora = cos(texture[x*ysize+y]-texture[x*ysize+yafter])- parameter[x*ysize+y]*sin(texture[x*ysize+y]-texture[x*ysize+yafter]);
+                yprefactorb = cos(texture[x*ysize+y]-texture[x*ysize+ybefore])-parameter[x*ysize+y]*sin(texture[x*ysize+y]-texture[x*ysize+ybefore]);
             
                 //\delta=-\Delta = \pm e_x
-                if(x>0 && x<xsize-1){
-                    gsl_matrix_set(jx,site,xposneighbour,
-                               -xprefactorb*(xprefactora-1)
-                               +gsl_matrix_get(jx,site,xposneighbour));//b_{l}^\dagger b_{l+e_x}
+                gsl_matrix_set(jx,x*ysize+y,xafter*ysize+y , xprefactorb*(xprefactora-1)+gsl_matrix_get(jx,x*ysize+y,xafter*ysize+y));//b_{l}^\dagger b_{l+e_x}
+                gsl_matrix_set(jx,x*ysize+y,xbefore*ysize+y,-xprefactora*(xprefactorb-1)+gsl_matrix_get(jx,x*ysize+y,xbefore*ysize+y));//b_{l}^\dagger b_{l-e_x}
+                
+                gsl_matrix_set(jx,xafter*ysize+y,x*ysize+y,-xprefactorb*(xprefactora-1)+gsl_matrix_get(jx,xafter*ysize+y,x*ysize+y));//b_{l+e_x}^\dagger b_{l}
+                gsl_matrix_set(jx,xbefore*ysize+y,x*ysize+y,xprefactora*(xprefactorb-1)+gsl_matrix_get(jx,xbefore*ysize+y,x*ysize+y));//b_{l-e_x}^\dagger b_{l}
+                
+                gsl_matrix_set(jx,x*ysize+y,xafter*ysize+y+systemsize,2*xprefactorb*(xprefactora+1)+gsl_matrix_get(jx,x*ysize+y,xafter*ysize+y+systemsize));//b_{l}^\dagger b_{l+e_x}^\dagger
+                gsl_matrix_set(jx,x*ysize+y,xbefore*ysize+y+systemsize,-2*xprefactora*(xprefactorb+1)+gsl_matrix_get(jx,x*ysize+y,xbefore*ysize+y+systemsize));//b_{l}^\dagger b_{l-e_x}^\dagger
+                
+                gsl_matrix_set(jx,xafter*ysize+y,x*ysize+y+systemsize,2*xprefactorb*(xprefactora+1)+gsl_matrix_get(jx,xafter*ysize+y,x*ysize+y+systemsize));//b_{l+e_x}^\dagger b_{l}\dagger
+                gsl_matrix_set(jx,xbefore*ysize+y,x*ysize+y+systemsize,-2*xprefactora*(xprefactorb+1)+gsl_matrix_get(jx,xbefore*ysize+y,x*ysize+y+systemsize));//b_{l-e_x}^\dagger b_{l}\dagger
+                
+                gsl_matrix_set(jx,xbefore*ysize+y,xafter*ysize+y,0.5*((xprefactorb-1)*(xprefactora-1)-(xprefactorb+1)*(xprefactora+1))+gsl_matrix_get(jx,xbefore*ysize+y,xafter*ysize+y));//b_{l-e_x}^\dagger b_{l+e_x}
+                gsl_matrix_set(jx,xafter*ysize+y,xbefore*ysize+y,-0.5*((xprefactora-1)*(xprefactorb-1)-(xprefactora+1)*(xprefactorb+1))+gsl_matrix_get(jx,xafter*ysize+y,xbefore*ysize+y));//b_{l+e_x}^\dagger b_{l-e_x}
                     
-                    gsl_matrix_set(jx,site,xnegneighbour,
-                               xprefactora*(xprefactorb-1)
-                               +gsl_matrix_get(jx,site,xnegneighbour));//b_{l}^\dagger b_{l-e_x}
-                    
-                    gsl_matrix_set(jx,xposneighbour,site,
-                               xprefactorb*(xprefactora-1)
-                               +gsl_matrix_get(jx,xposneighbour,site));//b_{l+e_x}^\dagger b_{l}
-                    
-                    gsl_matrix_set(jx,xnegneighbour,site,
-                               -xprefactora*(xprefactorb-1)
-                               +gsl_matrix_get(jx,xnegneighbour,site));//b_{l-e_x}^\dagger b_{l}
-                    
-                    gsl_matrix_set(jx,site,xposneighbour+systemsize,
-                               -2*xprefactorb*(xprefactora+1)
-                               +gsl_matrix_get(jx,site,xposneighbour+systemsize));//b_{l}^\dagger b_{l+e_x}^\dagger
-                    
-                    gsl_matrix_set(jx,site,xnegneighbour+systemsize,
-                               2*xprefactora*(xprefactorb+1)
-                               +gsl_matrix_get(jx,site,xnegneighbour+systemsize));//b_{l}^\dagger b_{l-e_x}^\dagger
-                    
-                    gsl_matrix_set(jx,xposneighbour,site+systemsize,
-                               -2*xprefactorb*(xprefactora+1)
-                               +gsl_matrix_get(jx,xposneighbour,site+systemsize));//b_{l+e_x}^\dagger b_{l}\dagger
-                    
-                    gsl_matrix_set(jx,xnegneighbour,site+systemsize,
-                               2*xprefactora*(xprefactorb+1)
-                               +gsl_matrix_get(jx,xnegneighbour,site+systemsize));//b_{l-e_x}^\dagger b_{l}\dagger
-                    
-                    gsl_matrix_set(jx,xnegneighbour,xposneighbour,
-                               0.5*((xprefactorb-1)*(xprefactora-1)-(xprefactorb+1)*(xprefactora+1))
-                               +gsl_matrix_get(jx,xnegneighbour,xposneighbour));//b_{l-e_x}^\dagger b_{l+e_x}
-                    
-                    gsl_matrix_set(jx,xposneighbour,xnegneighbour,
-                               -0.5*((xprefactora-1)*(xprefactorb-1)-(xprefactora+1)*(xprefactorb+1))
-                               +gsl_matrix_get(jx,xposneighbour,xnegneighbour));//b_{l+e_x}^\dagger b_{l-e_x}
-                    
-                    gsl_matrix_set(jx,xposneighbour,xnegneighbour+systemsize,
-                               (xprefactora-1)*(xprefactorb+1)
-                               +gsl_matrix_get(jx,xposneighbour,xnegneighbour+systemsize));//b_{l+e_x}^\dagger b_{l-e_x}^\dagger
-                    
-                    gsl_matrix_set(jx,xnegneighbour,xposneighbour+systemsize,
-                               -(xprefactorb-1)*(xprefactora+1)
-                               +gsl_matrix_get(jx,xnegneighbour,xposneighbour+systemsize));//b_{l-e_x}^\dagger b_{l+e_x}^\dagger
-                    
-                    gsl_matrix_set(jx,xnegneighbour,xposneighbour+systemsize,
-                               (xprefactora-1)*(xprefactorb+1)
-                               +gsl_matrix_get(jx,xnegneighbour,xposneighbour+systemsize));//b_{l-e_x}^\dagger b_{l+e_x}^\dagger
-                    
-                    gsl_matrix_set(jx,xposneighbour,xnegneighbour+systemsize,
-                               -(xprefactorb-1)*(xprefactora+1)
-                               +gsl_matrix_get(jx,xposneighbour,xnegneighbour+systemsize));//b_{l+e_x}^\dagger b_{l-e_x}^\dagger
-                }
+                gsl_matrix_set(jx,xafter*ysize+y,xbefore*ysize+y+systemsize,(xprefactora-1)*(xprefactorb+1)+gsl_matrix_get(jx,xafter*ysize+y,xbefore*ysize+y+systemsize));//b_{l+e_x}^\dagger b_{l-e_x}^\dagger
+                gsl_matrix_set(jx,xbefore*ysize+y,xafter*ysize+y+systemsize,-(xprefactorb-1)*(xprefactora+1)+gsl_matrix_get(jx,xbefore*ysize+y,xafter*ysize+y+systemsize));//b_{l-e_x}^\dagger b_{l+e_x}^\dagger
+                
+                gsl_matrix_set(jx,xbefore*ysize+y,xafter*ysize+y+systemsize,(xprefactora-1)*(xprefactorb+1)+gsl_matrix_get(jx,xbefore*ysize+y,xafter*ysize+y+systemsize));//b_{l-e_x}^\dagger b_{l+e_x}^\dagger
+                gsl_matrix_set(jx,xafter*ysize+y,xbefore*ysize+y+systemsize,-(xprefactorb-1)*(xprefactora+1)+gsl_matrix_get(jx,xafter*ysize+y,xbefore*ysize+y+systemsize));//b_{l+e_x}^\dagger b_{l-e_x}^\dagger
                 
                 //\delta=-\Delta = \pm e_y
-                gsl_matrix_set(jy,site,yposneighbour,
-                               -yprefactorb*(yprefactora-1)
-                               +gsl_matrix_get(jy,site,yposneighbour));//b_{l}^\dagger b_{l+e_y}
+                gsl_matrix_set(jy,x*ysize+y,x*ysize+yafter,yprefactorb*(yprefactora-1)+gsl_matrix_get(jy,x*ysize+y,x*ysize+yafter));//b_{l}^\dagger b_{l+e_y}
+                gsl_matrix_set(jy,x*ysize+y,x*ysize+ybefore,-yprefactora*(yprefactorb-1)+gsl_matrix_get(jy,x*ysize+y,x*ysize+ybefore));//b_{l}^\dagger b_{l-e_y}
                 
-                gsl_matrix_set(jy,site,ynegneighbour,
-                               yprefactora*(yprefactorb-1)
-                               +gsl_matrix_get(jy,site,ynegneighbour));//b_{l}^\dagger b_{l-e_y}
+                gsl_matrix_set(jy,x*ysize+yafter,x*ysize+y,-yprefactorb*(yprefactora-1)+gsl_matrix_get(jy,x*ysize+yafter,x*ysize+y));//b_{l+e_y}^\dagger b_{l}
+                gsl_matrix_set(jy,x*ysize+ybefore,x*ysize+y,yprefactora*(yprefactorb-1)+gsl_matrix_get(jy,x*ysize+ybefore,x*ysize+y));//b_{l-e_y}^\dagger b_{l}
                 
-                gsl_matrix_set(jy,yposneighbour,site,
-                               yprefactorb*(yprefactora-1)
-                               +gsl_matrix_get(jy,yposneighbour,site));//b_{l+e_y}^\dagger b_{l}
+                gsl_matrix_set(jy,x*ysize+y,x*ysize+yafter+systemsize,2*yprefactorb*(yprefactora+1)+gsl_matrix_get(jy,x*ysize+y,x*ysize+yafter+systemsize));//b_{l}^\dagger b_{l+e_y}^\dagger
+                gsl_matrix_set(jy,x*ysize+y,x*ysize+ybefore+systemsize,-2*yprefactora*(yprefactorb+1)+gsl_matrix_get(jy,x*ysize+y,x*ysize+ybefore+systemsize));//b_{l}^\dagger b_{l-e_y}^\dagger
                 
-                gsl_matrix_set(jy,ynegneighbour,site,
-                               -yprefactora*(yprefactorb-1)
-                               +gsl_matrix_get(jy,ynegneighbour,site));//b_{l-e_y}^\dagger b_{l}
+                gsl_matrix_set(jy,x*ysize+yafter,x*ysize+y+systemsize,2*yprefactorb*(yprefactora+1)+gsl_matrix_get(jy,x*ysize+yafter,x*ysize+y+systemsize));//b_{l+e_y}^\dagger b_{l}\dagger
+                gsl_matrix_set(jy,x*ysize+ybefore,x*ysize+y+systemsize,-2*yprefactora*(yprefactorb+1)+gsl_matrix_get(jy,x*ysize+ybefore,x*ysize+y+systemsize));//b_{l-e_y}^\dagger b_{l}\dagger
                 
-                gsl_matrix_set(jy,site,yposneighbour+systemsize,
-                               -2*yprefactorb*(yprefactora+1)
-                               +gsl_matrix_get(jy,site,yposneighbour+systemsize));//b_{l}^\dagger b_{l+e_y}^\dagger
+                gsl_matrix_set(jy,x*ysize+ybefore,x*ysize+yafter,0.5*((yprefactorb-1)*(yprefactora-1)-(yprefactorb+1)*(yprefactora+1))+gsl_matrix_get(jy,x*ysize+ybefore,x*ysize+yafter));//b_{l-e_y}^\dagger b_{l+e_y}
                 
-                gsl_matrix_set(jy,site,ynegneighbour+systemsize,
-                               2*yprefactora*(yprefactorb+1)
-                               +gsl_matrix_get(jy,site,ynegneighbour+systemsize));//b_{l}^\dagger b_{l-e_y}^\dagger
-                
-                gsl_matrix_set(jy,yposneighbour,site+systemsize,
-                               -2*yprefactorb*(yprefactora+1)
-                               +gsl_matrix_get(jy,yposneighbour,site+systemsize));//b_{l+e_y}^\dagger b_{l}\dagger
-                
-                gsl_matrix_set(jy,ynegneighbour,site+systemsize,
-                               2*yprefactora*(yprefactorb+1)
-                               +gsl_matrix_get(jy,ynegneighbour,site+systemsize));//b_{l-e_y}^\dagger b_{l}\dagger
-                
-                gsl_matrix_set(jy,ynegneighbour,yposneighbour,
-                               0.5*((yprefactorb-1)*(yprefactora-1)-(yprefactorb+1)*(yprefactora+1))
-                               +gsl_matrix_get(jy,ynegneighbour,yposneighbour));//b_{l-e_y}^\dagger b_{l+e_y}
-                
-                gsl_matrix_set(jy,yposneighbour,ynegneighbour,
-                               -0.5*((yprefactora-1)*(yprefactorb-1)-(yprefactora+1)*(yprefactorb+1))
-                               +gsl_matrix_get(jy,yposneighbour,ynegneighbour));//b_{l+e_y}^\dagger b_{l-e_y}
+                gsl_matrix_set(jy,x*ysize+yafter,x*ysize+ybefore,-0.5*((yprefactora-1)*(yprefactorb-1)-(yprefactora+1)*(yprefactorb+1))+gsl_matrix_get(jy,x*ysize+yafter,x*ysize+ybefore));//b_{l+e_y}^\dagger b_{l-e_y}
                     
-                gsl_matrix_set(jy,yposneighbour,ynegneighbour+systemsize,
-                               (yprefactora-1)*(yprefactorb+1)
-                               +gsl_matrix_get(jy,yposneighbour,ynegneighbour+systemsize));//b_{l+e_y}^\dagger b_{l-e_y}^\dagger
+                gsl_matrix_set(jy,x*ysize+yafter,x*ysize+ybefore+systemsize,(yprefactora-1)*(yprefactorb+1)+gsl_matrix_get(jy,x*ysize+yafter,x*ysize+ybefore+systemsize));//b_{l+e_y}^\dagger b_{l-e_y}^\dagger
+                gsl_matrix_set(jy,x*ysize+ybefore,x*ysize+yafter+systemsize,-(yprefactorb-1)*(yprefactora+1)+gsl_matrix_get(jy,x*ysize+ybefore,x*ysize+yafter+systemsize));//b_{l-e_y}^\dagger b_{l+e_y}^\dagger
                 
-                gsl_matrix_set(jy,ynegneighbour,yposneighbour+systemsize,
-                               -(yprefactorb-1)*(yprefactora+1)
-                               +gsl_matrix_get(jy,ynegneighbour,yposneighbour+systemsize));//b_{l-e_y}^\dagger b_{l+e_y}^\dagger
+                gsl_matrix_set(jy,x*ysize+ybefore,x*ysize+yafter+systemsize,(yprefactora-1)*(yprefactorb+1)+gsl_matrix_get(jy,x*ysize+ybefore,x*ysize+yafter+systemsize));//b_{l-e_y}^\dagger b_{l+e_y}^\dagger
+                gsl_matrix_set(jy,x*ysize+yafter,x*ysize+ybefore+systemsize,-(yprefactorb-1)*(yprefactora+1)+gsl_matrix_get(jy,x*ysize+yafter,x*ysize+ybefore+systemsize));//b_{l+e_y}^\dagger b_{l-e_y}^\dagger
                 
-                gsl_matrix_set(jy,ynegneighbour,yposneighbour+systemsize,
-                               (yprefactora-1)*(yprefactorb+1)
-                               +gsl_matrix_get(jy,ynegneighbour,yposneighbour+systemsize));//b_{l-e_y}^\dagger b_{l+e_y}^\dagger
-                
-                gsl_matrix_set(jy,yposneighbour,ynegneighbour+systemsize,
-                               -(yprefactorb-1)*(yprefactora+1)
-                               +gsl_matrix_get(jy,yposneighbour,ynegneighbour+systemsize));//b_{l+e_y}^\dagger b_{l-e_y}^\dagger
                 
                 //\delta not (-\Delta)
                 //\Delta=\pm e_x
-                if(x<xsize-1){
-                    gsl_matrix_set(jx,site,xposneighbour,
-                               -0.5*yprefactora*(xprefactora-1)
-                               +gsl_matrix_get(jx,site,xposneighbour));//b_{l}^\dagger b_{l+e_x}  \delta = +e_y
-                    
-                    gsl_matrix_set(jy,site,xposneighbour,
-                               0.5*yprefactora*(xprefactora-1)
-                               +gsl_matrix_get(jy,site,xposneighbour));
-                    
-                    gsl_matrix_set(jx,site,xposneighbour,
-                               -0.5*yprefactorb*(xprefactora-1)
-                               +gsl_matrix_get(jx,site,xposneighbour));//b_{l}^\dagger b_{l+e_x} \delta = -ey
-                    
-                    gsl_matrix_set(jy,site,xposneighbour,
-                               -0.5*yprefactorb*(xprefactora-1)
-                               +gsl_matrix_get(jy,site,xposneighbour));    
-                    
-                    gsl_matrix_set(jx,xposneighbour,site,
-                               0.5*yprefactora*(xprefactora-1)
-                               +gsl_matrix_get(jx,xposneighbour,site));//b_{l+e_x}^\dagger b_{l}  \delta = +e_y 
-                    
-                    gsl_matrix_set(jy,xposneighbour,site,
-                               -0.5*yprefactora*(xprefactora-1)
-                               +gsl_matrix_get(jy,xposneighbour,site));
-                    
-                    gsl_matrix_set(jx,xposneighbour,site,
-                               0.5*yprefactorb*(xprefactora-1)
-                               +gsl_matrix_get(jx,xposneighbour,site));//b_{l+e_x}^\dagger b_{l} \delta = -ey
-                    
-                    gsl_matrix_set(jy,xposneighbour,site,
-                               0.5*yprefactorb*(xprefactora-1)
-                               +gsl_matrix_get(jy,xposneighbour,site));
-                    
-                    gsl_matrix_set(jx,site,xposneighbour+systemsize,
-                               -yprefactora*(xprefactora+1)
-                               +gsl_matrix_get(jx,site,xposneighbour+systemsize));//b_{l}^\dagger b_{l+e_x}^\dagger  \delta = +e_y
-                    
-                    gsl_matrix_set(jy,site,xposneighbour+systemsize,
-                               yprefactora*(xprefactora+1)
-                               +gsl_matrix_get(jy,site,xposneighbour+systemsize));
-                    
-                    gsl_matrix_set(jx,site,xposneighbour+systemsize,
-                               -yprefactorb*(xprefactora+1)
-                               +gsl_matrix_get(jx,site,xposneighbour+systemsize));//b_{l}^\dagger b_{l+e_x}^\dagger \delta = -ey
-                    
-                    gsl_matrix_set(jy,site,xposneighbour+systemsize,
-                               -yprefactorb*(xprefactora+1)
-                               +gsl_matrix_get(jy,site,xposneighbour+systemsize));
-                    
-                    gsl_matrix_set(jx,xposneighbour,site+systemsize,
-                               -yprefactora*(xprefactora+1)
-                               +gsl_matrix_get(jx,xposneighbour,site+systemsize));//b_{l+e_x}^\dagger b_{l}^\dagger  \delta = +e_y
-                    
-                    gsl_matrix_set(jy,xposneighbour,site+systemsize,
-                               yprefactora*(xprefactora+1)
-                               +gsl_matrix_get(jy,xposneighbour,site+systemsize));
-                    
-                    gsl_matrix_set(jx,xposneighbour,site+systemsize,
-                               -yprefactorb*(xprefactora+1)
-                               +gsl_matrix_get(jx,xposneighbour,site+systemsize));//b_{l+e_x}^\dagger b_{l}^\dagger \delta = -ey
-                    
-                    gsl_matrix_set(jy,xposneighbour,site+systemsize,
-                               -yprefactorb*(xprefactora+1)
-                               +gsl_matrix_get(jy,xposneighbour,site+systemsize));
-                    
-                    gsl_matrix_set(jx,yposneighbour,xposneighbour,
-                               0.25*((yprefactora-1)*(xprefactora-1)-(yprefactora+1)*(xprefactora+1))
-                               +gsl_matrix_get(jx,yposneighbour,xposneighbour));//b_{l+e_y}^\dagger b_{l+e_x}
-                    
-                    gsl_matrix_set(jy,yposneighbour,xposneighbour,
-                               -0.25*((yprefactora-1)*(xprefactora-1)-(yprefactora+1)*(xprefactora+1))
-                               +gsl_matrix_get(jy,yposneighbour,xposneighbour));
-                    
-                    gsl_matrix_set(jx,ynegneighbour,xposneighbour,
-                               0.25*((yprefactorb-1)*(xprefactora-1)-(yprefactorb+1)*(xprefactora+1))
-                               +gsl_matrix_get(jx,ynegneighbour,xposneighbour));//b_{l-e_y}^\dagger b_{l+e_x}
-                    
-                    gsl_matrix_set(jy,ynegneighbour,xposneighbour,
-                               0.25*((yprefactorb-1)*(xprefactora-1)-(yprefactorb+1)*(xprefactora+1))
-                               +gsl_matrix_get(jy,ynegneighbour,xposneighbour));
-                    
-                    gsl_matrix_set(jx,yposneighbour,xposneighbour+systemsize,
-                               -0.5*((yprefactora-1)*(xprefactora+1))
-                               +gsl_matrix_get(jx,yposneighbour,xposneighbour+systemsize));//b_{l+e_y}^\dagger b_{l+e_x}^\dagger
-                    
-                    gsl_matrix_set(jy,yposneighbour,xposneighbour+systemsize,
-                               0.5*((yprefactora-1)*(xprefactora+1))
-                               +gsl_matrix_get(jy,yposneighbour,xposneighbour+systemsize));
-                    
-                    gsl_matrix_set(jx,ynegneighbour,xposneighbour+systemsize,
-                               -0.5*((yprefactorb-1)*(xprefactora+1))
-                               +gsl_matrix_get(jx,ynegneighbour,xposneighbour+systemsize));//b_{l-e_y}^\dagger b_{l+e_x}^\dagger 
-                    
-                    gsl_matrix_set(jy,ynegneighbour,xposneighbour+systemsize,
-                               -0.5*((yprefactorb-1)*(xprefactora+1))
-                               +gsl_matrix_get(jy,ynegneighbour,xposneighbour+systemsize));
-                    
-                    gsl_matrix_set(jx,xposneighbour,yposneighbour+systemsize,
-                               -0.5*((yprefactora-1)*(xprefactora+1))
-                               +gsl_matrix_get(jx,xposneighbour,yposneighbour+systemsize));//b_{l+e_x}^\dagger b_{l+e_y}^\dagger
-                    
-                    gsl_matrix_set(jy,xposneighbour,yposneighbour+systemsize,
-                               0.5*((yprefactora-1)*(xprefactora+1))
-                               +gsl_matrix_get(jy,xposneighbour,yposneighbour+systemsize));
-                    
-                    gsl_matrix_set(jx,xposneighbour,ynegneighbour+systemsize,
-                               -0.5*((yprefactorb-1)*(xprefactora+1))
-                               +gsl_matrix_get(jx,xposneighbour,ynegneighbour+systemsize));//b_{l+e_x}^\dagger b_{l-e_y}^\dagger
-                    
-                    gsl_matrix_set(jy,xposneighbour,ynegneighbour+systemsize,
-                               -0.5*((yprefactorb-1)*(xprefactora+1))
-                               +gsl_matrix_get(jy,xposneighbour,ynegneighbour+systemsize));
-                    
-                    //\Delta=\pm e_y
-                    gsl_matrix_set(jy,site,yposneighbour,
-                               -0.5*xprefactora*(yprefactora-1)
-                               +gsl_matrix_get(jy,site,yposneighbour));//b_{l}^\dagger b_{l+e_y}  \delta = +e_x
-                    gsl_matrix_set(jx,site,yposneighbour,
-                               0.5*xprefactora*(yprefactora-1)
-                               +gsl_matrix_get(jx,site,yposneighbour));
-                    
-                    gsl_matrix_set(jy,site,ynegneighbour,
-                               0.5*xprefactora*(yprefactorb-1)
-                               +gsl_matrix_get(jy,site,ynegneighbour));//b_{l}^\dagger b_{l-e_y} \delta = +e_x
-                    
-                    gsl_matrix_set(jx,site,ynegneighbour,
-                               0.5*xprefactora*(yprefactorb-1)
-                               +gsl_matrix_get(jx,site,ynegneighbour));
-                    
-                    gsl_matrix_set(jy,yposneighbour,site,
-                               0.5*xprefactora*(yprefactora-1)
-                               +gsl_matrix_get(jy,yposneighbour,site));//b_{l+e_y}^\dagger b_{l}  \delta = +e_x
-                    
-                    gsl_matrix_set(jx,yposneighbour,site,
-                               -0.5*xprefactora*(yprefactora-1)
-                               +gsl_matrix_get(jx,yposneighbour,site));
-                    
-                    gsl_matrix_set(jy,ynegneighbour,site,
-                               -0.5*xprefactora*(yprefactorb-1)
-                               +gsl_matrix_get(jy,ynegneighbour,site));//b_{l-e_y}^\dagger b_{l} \delta = +e_x
-                    
-                    gsl_matrix_set(jx,ynegneighbour,site,
-                               -0.5*xprefactora*(yprefactorb-1)
-                               +gsl_matrix_get(jx,ynegneighbour,site)); 
-                    
-                    gsl_matrix_set(jy,site,yposneighbour+systemsize,
-                               -xprefactora*(yprefactora+1)
-                               +gsl_matrix_get(jy,site,yposneighbour+systemsize));//b_{l}^\dagger b_{l+e_y}^\dagger  \delta = +e_x
-                    
-                    gsl_matrix_set(jx,site,yposneighbour+systemsize,
-                               xprefactora*(yprefactora+1)
-                               +gsl_matrix_get(jx,site,yposneighbour+systemsize));
-                    
-                    gsl_matrix_set(jy,site,ynegneighbour+systemsize,
-                               xprefactora*(yprefactorb+1)
-                               +gsl_matrix_get(jy,site,ynegneighbour+systemsize));//b_{l}^\dagger b_{l-e_y}^\dagger \delta = +e_x
-                    
-                    gsl_matrix_set(jx,site,ynegneighbour+systemsize,
-                               xprefactora*(yprefactorb+1)
-                               +gsl_matrix_get(jx,site,ynegneighbour+systemsize)); 
-                    
-                    gsl_matrix_set(jy,yposneighbour,site+systemsize,
-                               -xprefactora*(yprefactora+1)
-                               +gsl_matrix_get(jy,yposneighbour,site+systemsize));//b_{l+e_y}^\dagger b_{l}^\dagger  \delta = +e_x
-                    
-                    gsl_matrix_set(jx,yposneighbour,site+systemsize,
-                               xprefactora*(yprefactora+1)
-                               +gsl_matrix_get(jx,yposneighbour,site+systemsize));
-                    
-                    gsl_matrix_set(jy,ynegneighbour,site+systemsize,
-                               xprefactora*(yprefactorb+1)
-                               +gsl_matrix_get(jy,ynegneighbour,site+systemsize));//b_{l-e_y}^\dagger b_{l}^\dagger \delta = +e_x
-                    
-                    gsl_matrix_set(jx,ynegneighbour,site+systemsize,
-                               xprefactora*(yprefactorb+1)
-                               +gsl_matrix_get(jx,ynegneighbour,site+systemsize));
-                    
-                    gsl_matrix_set(jy,xposneighbour,yposneighbour,
-                               0.25*((xprefactora-1)*(yprefactora-1)-(xprefactora+1)*(yprefactora+1))
-                               +gsl_matrix_get(jy,xposneighbour,yposneighbour));//b_{l+e_x}^\dagger b_{l+e_y}
-                    
-                    gsl_matrix_set(jx,xposneighbour,yposneighbour,
-                               -0.25*((xprefactora-1)*(yprefactora-1)-(xprefactora+1)*(yprefactora+1))
-                               +gsl_matrix_get(jx,xposneighbour,yposneighbour));
-                    
-                    gsl_matrix_set(jy,xposneighbour,ynegneighbour,
-                               -0.25*((xprefactora-1)*(yprefactorb-1)-(xprefactora+1)*(yprefactorb+1))
-                               +gsl_matrix_get(jy,xposneighbour,ynegneighbour));//b_{l+e_x}^\dagger b_{l-e_y}
-                    
-                    gsl_matrix_set(jx,xposneighbour,ynegneighbour,
-                               -0.25*((xprefactora-1)*(yprefactorb-1)-(xprefactora+1)*(yprefactorb+1))
-                               +gsl_matrix_get(jx,xposneighbour,ynegneighbour));
-                    
-                    gsl_matrix_set(jy,xposneighbour,yposneighbour+systemsize,
-                               -0.5*((xprefactora-1)*(yprefactora+1))
-                               +gsl_matrix_get(jy,xposneighbour,yposneighbour+systemsize));//b_{l+e_x}^\dagger b_{l+e_y}^\dagger
-                    
-                    gsl_matrix_set(jx,xposneighbour,yposneighbour+systemsize,
-                               0.5*((xprefactora-1)*(yprefactora+1))
-                               +gsl_matrix_get(jx,xposneighbour,yposneighbour+systemsize));
-                    
-                    gsl_matrix_set(jy,xposneighbour,ynegneighbour+systemsize,
-                               0.5*((xprefactora-1)*(yprefactorb+1))
-                               +gsl_matrix_get(jy,xposneighbour,ynegneighbour+systemsize));//b_{l+e_x}^\dagger b_{l-e_y}^\dagger
-                    
-                    gsl_matrix_set(jx,xposneighbour,ynegneighbour+systemsize,
-                               0.5*((xprefactora-1)*(yprefactorb+1))
-                               +gsl_matrix_get(jx,xposneighbour,ynegneighbour+systemsize));
-                    
-                    gsl_matrix_set(jy,yposneighbour,xposneighbour+systemsize,
-                               -0.5*((xprefactora-1)*(yprefactora+1))
-                               +gsl_matrix_get(jy,yposneighbour,xposneighbour+systemsize));//b_{l+e_y}^\dagger b_{l+e_x}^\dagger
-                    
-                    gsl_matrix_set(jx,yposneighbour,xposneighbour+systemsize,
-                               0.5*((xprefactora-1)*(yprefactora+1))
-                               +gsl_matrix_get(jx,yposneighbour,xposneighbour+systemsize));
-                    
-                    gsl_matrix_set(jy,ynegneighbour,xposneighbour+systemsize,
-                               0.5*((xprefactora-1)*(yprefactorb+1))
-                               +gsl_matrix_get(jy,ynegneighbour,xposneighbour+systemsize));//b_{l-e_y}^\dagger b_{l+e_x}^\dagger
-                    
-                    gsl_matrix_set(jx,ynegneighbour,xposneighbour+systemsize,
-                               0.5*((xprefactora-1)*(yprefactorb+1))
-                               +gsl_matrix_get(jx,ynegneighbour,xposneighbour+systemsize));
-                }
                 
-                if(x>0){
-                    gsl_matrix_set(jx,site,xnegneighbour,
-                               0.5*yprefactora*(xprefactorb-1)
-                               +gsl_matrix_get(jx,site,xnegneighbour));//b_{l}^\dagger b_{l-e_x} \delta = +e_y
-                    
-                    gsl_matrix_set(jy,site,xnegneighbour,
-                               0.5*yprefactora*(xprefactorb-1)
-                               +gsl_matrix_get(jy,site,xnegneighbour));
-                    
-                    gsl_matrix_set(jx,site,xnegneighbour,
-                               0.5*yprefactorb*(xprefactorb-1)
-                               +gsl_matrix_get(jx,site,xnegneighbour));//b_{l}^\dagger b_{l-e_x} \delta = -e_y
-                    
-                    gsl_matrix_set(jy,site,xnegneighbour,
-                               -0.5*yprefactorb*(xprefactorb-1)
-                               +gsl_matrix_get(jy,site,xnegneighbour));
-                    
-                    gsl_matrix_set(jx,xnegneighbour,site,
-                               -0.5*yprefactora*(xprefactorb-1)
-                               +gsl_matrix_get(jx,xnegneighbour,site));//b_{l-e_x}^\dagger b_{l} \delta = +e_y
-                    
-                    gsl_matrix_set(jy,xnegneighbour,site,
-                               -0.5*yprefactora*(xprefactorb-1)
-                               +gsl_matrix_get(jy,xnegneighbour,site));
-                    
-                    gsl_matrix_set(jx,xnegneighbour,site,
-                               -0.5*yprefactorb*(xprefactorb-1)
-                               +gsl_matrix_get(jx,xnegneighbour,site));//b_{l-e_x}^\dagger b_{l} \delta = -e_y
-                    
-                    gsl_matrix_set(jy,xnegneighbour,site,
-                               0.5*yprefactorb*(xprefactorb-1)
-                               +gsl_matrix_get(jy,xnegneighbour,site));
-                    
-                    gsl_matrix_set(jx,site,xnegneighbour+systemsize,
-                               yprefactora*(xprefactorb+1)
-                               +gsl_matrix_get(jx,site,xnegneighbour+systemsize));//b_{l}^\dagger b_{l-e_x}^\dagger \delta = +e_y
-                    
-                    gsl_matrix_set(jy,site,xnegneighbour+systemsize,
-                               yprefactora*(xprefactorb+1)
-                               +gsl_matrix_get(jy,site,xnegneighbour+systemsize));      
-                    
-                    gsl_matrix_set(jx,site,xnegneighbour+systemsize,
-                               yprefactorb*(xprefactorb+1)
-                               +gsl_matrix_get(jx,site,xnegneighbour+systemsize));//b_{l}^\dagger b_{l-e_x}^\dagger \delta = -e_y
-                    
-                    gsl_matrix_set(jy,site,xnegneighbour+systemsize,
-                               -yprefactorb*(xprefactorb+1)
-                               +gsl_matrix_get(jy,site,xnegneighbour+systemsize));
-                    
-                    gsl_matrix_set(jx,xnegneighbour,site+systemsize,
-                               yprefactora*(xprefactorb+1)
-                               +gsl_matrix_get(jx,xnegneighbour,site+systemsize));//b_{l-e_x}^\dagger b_{l}^\dagger \delta = +e_y
-                    
-                    gsl_matrix_set(jy,xnegneighbour,site+systemsize,
-                               yprefactora*(xprefactorb+1)
-                               +gsl_matrix_get(jy,xnegneighbour,site+systemsize));
-                    
-                    gsl_matrix_set(jx,xnegneighbour,site+systemsize,
-                               yprefactorb*(xprefactorb+1)
-                               +gsl_matrix_get(jx,xnegneighbour,site+systemsize));//b_{l-e_x}^\dagger b_{l}^\dagger \delta = -e_y
-                    
-                    gsl_matrix_set(jy,xnegneighbour,site+systemsize,
-                               -yprefactorb*(xprefactorb+1)
-                               +gsl_matrix_get(jy,xnegneighbour,site+systemsize));
-                    
-                    gsl_matrix_set(jx,yposneighbour,xnegneighbour,
-                               -0.25*((yprefactora-1)*(xprefactorb-1)-(yprefactora+1)*(xprefactorb+1))
-                               +gsl_matrix_get(jx,yposneighbour,xnegneighbour));//b_{l+e_y}^\dagger b_{l-e_x}
-                    
-                    gsl_matrix_set(jy,yposneighbour,xnegneighbour,
-                               -0.25*((yprefactora-1)*(xprefactorb-1)-(yprefactora+1)*(xprefactorb+1))
-                               +gsl_matrix_get(jy,yposneighbour,xnegneighbour));
-                    
-                    gsl_matrix_set(jx,ynegneighbour,xnegneighbour,
-                               -0.25*((yprefactorb-1)*(xprefactorb-1)-(yprefactorb+1)*(xprefactorb+1))
-                               +gsl_matrix_get(jx,ynegneighbour,xnegneighbour));//b_{l-e_y}^\dagger b_{l-e_x}
-                    
-                    gsl_matrix_set(jy,ynegneighbour,xnegneighbour,
-                               0.25*((yprefactorb-1)*(xprefactorb-1)-(yprefactorb+1)*(xprefactorb+1))
-                               +gsl_matrix_get(jy,ynegneighbour,xnegneighbour));
-                    
-                    gsl_matrix_set(jx,yposneighbour,xnegneighbour+systemsize,
-                               0.5*((yprefactora-1)*(xprefactorb+1))
-                               +gsl_matrix_get(jx,yposneighbour,xnegneighbour+systemsize));//b_{l+e_y}^\dagger b_{l-e_x}^\dagger
-                    
-                    gsl_matrix_set(jy,yposneighbour,xnegneighbour+systemsize,
-                               0.5*((yprefactora-1)*(xprefactorb+1))
-                               +gsl_matrix_get(jy,yposneighbour,xnegneighbour+systemsize));
-                    
-                    gsl_matrix_set(jx,ynegneighbour,xnegneighbour+systemsize,
-                               0.5*((yprefactorb-1)*(xprefactorb+1))
-                               +gsl_matrix_get(jx,ynegneighbour,xnegneighbour+systemsize));//b_{l-e_y}^\dagger b_{l-e_x}^\dagger
-                    
-                    gsl_matrix_set(jy,ynegneighbour,xnegneighbour+systemsize,
-                               -0.5*((yprefactorb-1)*(xprefactorb+1))
-                               +gsl_matrix_get(jy,ynegneighbour,xnegneighbour+systemsize));
-                    
-                    gsl_matrix_set(jx,xnegneighbour,yposneighbour+systemsize,
-                               0.5*((yprefactora-1)*(xprefactorb+1))
-                               +gsl_matrix_get(jx,xnegneighbour,yposneighbour+systemsize));//b_{l-e_x}^\dagger b_{l+e_y}^\dagger
-                    
-                    gsl_matrix_set(jy,xnegneighbour,yposneighbour+systemsize,
-                               0.5*((yprefactora-1)*(xprefactorb+1))
-                               +gsl_matrix_get(jy,xnegneighbour,yposneighbour+systemsize));
-                    
-                    gsl_matrix_set(jx,xnegneighbour,ynegneighbour+systemsize,
-                               0.5*((yprefactorb-1)*(xprefactorb+1))
-                               +gsl_matrix_get(jx,xnegneighbour,ynegneighbour+systemsize));//b_{l-e_x}^\dagger b_{l-e_y}^\dagger
-                    
-                    gsl_matrix_set(jy,xnegneighbour,ynegneighbour+systemsize,
-                               -0.5*((yprefactorb-1)*(xprefactorb+1))
-                               +gsl_matrix_get(jy,xnegneighbour,ynegneighbour+systemsize));
-                    
-                    //\Delta=\pm e_y
-                    gsl_matrix_set(jy,site,yposneighbour,
-                               -0.5*xprefactorb*(yprefactora-1)
-                               +gsl_matrix_get(jy,site,yposneighbour));//b_{l}^\dagger b_{l+e_y} \delta = -e_x
-                    
-                    gsl_matrix_set(jx,site,yposneighbour,
-                               -0.5*xprefactorb*(yprefactora-1)
-                               +gsl_matrix_get(jx,site,yposneighbour));
-                    
-                    gsl_matrix_set(jy,site,ynegneighbour,
-                               0.5*xprefactorb*(yprefactorb-1)
-                               +gsl_matrix_get(jy,site,ynegneighbour));//b_{l}^\dagger b_{l-e_y} \delta = -e_x
-                    
-                    gsl_matrix_set(jx,site,ynegneighbour,
-                               -0.5*xprefactorb*(yprefactorb-1)
-                               +gsl_matrix_get(jx,site,ynegneighbour));
-                    
-                    gsl_matrix_set(jy,yposneighbour,site,
-                               0.5*xprefactorb*(yprefactora-1)
-                               +gsl_matrix_get(jy,yposneighbour,site));//b_{l+e_y}^\dagger b_{l} \delta = -e_x
-                    
-                    gsl_matrix_set(jx,yposneighbour,site,
-                               0.5*xprefactorb*(yprefactora-1)
-                               +gsl_matrix_get(jx,yposneighbour,site));
-                    
-                    gsl_matrix_set(jy,ynegneighbour,site,
-                               -0.5*xprefactorb*(yprefactorb-1)
-                               +gsl_matrix_get(jy,ynegneighbour,site));//b_{l-e_y}^\dagger b_{l} \delta = -e_x
-                    
-                    gsl_matrix_set(jx,ynegneighbour,site,
-                               0.5*xprefactorb*(yprefactorb-1)
-                               +gsl_matrix_get(jx,ynegneighbour,site));
-                    
-                    gsl_matrix_set(jy,site,yposneighbour+systemsize,
-                               -xprefactorb*(yprefactora+1)
-                               +gsl_matrix_get(jy,site,yposneighbour+systemsize));//b_{l}^\dagger b_{l+e_y}^\dagger \delta = -e_x
+                gsl_matrix_set(jx,x*ysize+y,xafter*ysize+y,0.5*yprefactora*(xprefactora-1)+gsl_matrix_get(jx,x*ysize+y,xafter*ysize+y));//b_{l}^\dagger b_{l+e_x}  \delta = +e_y 
+                gsl_matrix_set(jy,x*ysize+y,xafter*ysize+y,-0.5*yprefactora*(xprefactora-1)+gsl_matrix_get(jy,x*ysize+y,xafter*ysize+y));
+                gsl_matrix_set(jx,x*ysize+y,xafter*ysize+y,0.5*yprefactorb*(xprefactora-1)+gsl_matrix_get(jx,x*ysize+y,xafter*ysize+y));//b_{l}^\dagger b_{l+e_x} \delta = -ey
+                gsl_matrix_set(jy,x*ysize+y,xafter*ysize+y,0.5*yprefactorb*(xprefactora-1)+gsl_matrix_get(jy,x*ysize+y,xafter*ysize+y));
+                gsl_matrix_set(jx,x*ysize+y,xbefore*ysize+y,-0.5*yprefactora*(xprefactorb-1)+gsl_matrix_get(jx,x*ysize+y,xbefore*ysize+y));//b_{l}^\dagger b_{l-e_x} \delta = +e_y
+                gsl_matrix_set(jy,x*ysize+y,xbefore*ysize+y,-0.5*yprefactora*(xprefactorb-1)+gsl_matrix_get(jy,x*ysize+y,xbefore*ysize+y));                        
+                gsl_matrix_set(jx,x*ysize+y,xbefore*ysize+y,-0.5*yprefactorb*(xprefactorb-1)+gsl_matrix_get(jx,x*ysize+y,xbefore*ysize+y));//b_{l}^\dagger b_{l-e_x} \delta = -e_y
+                gsl_matrix_set(jy,x*ysize+y,xbefore*ysize+y,0.5*yprefactorb*(xprefactorb-1)+gsl_matrix_get(jy,x*ysize+y,xbefore*ysize+y));
+                        
+                gsl_matrix_set(jx,xafter*ysize+y,x*ysize+y,-0.5*yprefactora*(xprefactora-1)+gsl_matrix_get(jx,xafter*ysize+y,x*ysize+y));//b_{l+e_x}^\dagger b_{l}  \delta = +e_y 
+                gsl_matrix_set(jy,xafter*ysize+y,x*ysize+y,0.5*yprefactora*(xprefactora-1)+gsl_matrix_get(jy,xafter*ysize+y,x*ysize+y));
+                gsl_matrix_set(jx,xafter*ysize+y,x*ysize+y,-0.5*yprefactorb*(xprefactora-1)+gsl_matrix_get(jx,xafter*ysize+y,x*ysize+y));//b_{l+e_x}^\dagger b_{l} \delta = -ey
+                gsl_matrix_set(jy,xafter*ysize+y,x*ysize+y,-0.5*yprefactorb*(xprefactora-1)+gsl_matrix_get(jy,xafter*ysize+y,x*ysize+y));
+                gsl_matrix_set(jx,xbefore*ysize+y,x*ysize+y,0.5*yprefactora*(xprefactorb-1)+gsl_matrix_get(jx,xbefore*ysize+y,x*ysize+y));//b_{l-e_x}^\dagger b_{l} \delta = +e_y
+                gsl_matrix_set(jy,xbefore*ysize+y,x*ysize+y,0.5*yprefactora*(xprefactorb-1)+gsl_matrix_get(jy,xbefore*ysize+y,x*ysize+y));                        
+                gsl_matrix_set(jx,xbefore*ysize+y,x*ysize+y,0.5*yprefactorb*(xprefactorb-1)+gsl_matrix_get(jx,xbefore*ysize+y,x*ysize+y));//b_{l-e_x}^\dagger b_{l} \delta = -e_y
+                gsl_matrix_set(jy,xbefore*ysize+y,x*ysize+y,-0.5*yprefactorb*(xprefactorb-1)+gsl_matrix_get(jy,xbefore*ysize+y,x*ysize+y));
+                        
+                gsl_matrix_set(jx,x*ysize+y,xafter*ysize+y+systemsize,yprefactora*(xprefactora+1)+gsl_matrix_get(jx,x*ysize+y,xafter*ysize+y+systemsize));//b_{l}^\dagger b_{l+e_x}^\dagger  \delta = +e_y 
+                gsl_matrix_set(jy,x*ysize+y,xafter*ysize+y+systemsize,-yprefactora*(xprefactora+1)+gsl_matrix_get(jy,x*ysize+y,xafter*ysize+y+systemsize));
+                gsl_matrix_set(jx,x*ysize+y,xafter*ysize+y+systemsize,yprefactorb*(xprefactora+1)+gsl_matrix_get(jx,x*ysize+y,xafter*ysize+y+systemsize));//b_{l}^\dagger b_{l+e_x}^\dagger \delta = -ey
+                gsl_matrix_set(jy,x*ysize+y,xafter*ysize+y+systemsize,yprefactorb*(xprefactora+1)+gsl_matrix_get(jy,x*ysize+y,xafter*ysize+y+systemsize));
+                gsl_matrix_set(jx,x*ysize+y,xbefore*ysize+y+systemsize,-yprefactora*(xprefactorb+1)+gsl_matrix_get(jx,x*ysize+y,xbefore*ysize+y+systemsize));//b_{l}^\dagger b_{l-e_x}^\dagger \delta = +e_y
+                gsl_matrix_set(jy,x*ysize+y,xbefore*ysize+y+systemsize,-yprefactora*(xprefactorb+1)+gsl_matrix_get(jy,x*ysize+y,xbefore*ysize+y+systemsize));                        
+                gsl_matrix_set(jx,x*ysize+y,xbefore*ysize+y+systemsize,-yprefactorb*(xprefactorb+1)+gsl_matrix_get(jx,x*ysize+y,xbefore*ysize+y+systemsize));//b_{l}^\dagger b_{l-e_x}^\dagger \delta = -e_y
+                gsl_matrix_set(jy,x*ysize+y,xbefore*ysize+y+systemsize,yprefactorb*(xprefactorb+1)+gsl_matrix_get(jy,x*ysize+y,xbefore*ysize+y+systemsize));
+                        
+                gsl_matrix_set(jx,xafter*ysize+y,x*ysize+y+systemsize,yprefactora*(xprefactora+1)+gsl_matrix_get(jx,xafter*ysize+y,x*ysize+y+systemsize));//b_{l+e_x}^\dagger b_{l}^\dagger  \delta = +e_y 
+                gsl_matrix_set(jy,xafter*ysize+y,x*ysize+y+systemsize,-yprefactora*(xprefactora+1)+gsl_matrix_get(jy,xafter*ysize+y,x*ysize+y+systemsize));
+                gsl_matrix_set(jx,xafter*ysize+y,x*ysize+y+systemsize,yprefactorb*(xprefactora+1)+gsl_matrix_get(jx,xafter*ysize+y,x*ysize+y+systemsize));//b_{l+e_x}^\dagger b_{l}^\dagger \delta = -ey
+                gsl_matrix_set(jy,xafter*ysize+y,x*ysize+y+systemsize,yprefactorb*(xprefactora+1)+gsl_matrix_get(jy,xafter*ysize+y,x*ysize+y+systemsize));
+                gsl_matrix_set(jx,xbefore*ysize+y,x*ysize+y+systemsize,-yprefactora*(xprefactorb+1)+gsl_matrix_get(jx,xbefore*ysize+y,x*ysize+y+systemsize));//b_{l-e_x}^\dagger b_{l}^\dagger \delta = +e_y
+                gsl_matrix_set(jy,xbefore*ysize+y,x*ysize+y+systemsize,-yprefactora*(xprefactorb+1)+gsl_matrix_get(jy,xbefore*ysize+y,x*ysize+y+systemsize));                        
+                gsl_matrix_set(jx,xbefore*ysize+y,x*ysize+y+systemsize,-yprefactorb*(xprefactorb+1)+gsl_matrix_get(jx,xbefore*ysize+y,x*ysize+y+systemsize));//b_{l-e_x}^\dagger b_{l}^\dagger \delta = -e_y
+                gsl_matrix_set(jy,xbefore*ysize+y,x*ysize+y+systemsize,yprefactorb*(xprefactorb+1)+gsl_matrix_get(jy,xbefore*ysize+y,x*ysize+y+systemsize));
                 
-                    gsl_matrix_set(jx,site,yposneighbour+systemsize,
-                               -xprefactorb*(yprefactora+1)
-                               +gsl_matrix_get(jx,site,yposneighbour+systemsize));
-                    
-                    gsl_matrix_set(jy,site,ynegneighbour+systemsize,
-                               xprefactorb*(yprefactorb+1)
-                               +gsl_matrix_get(jy,site,ynegneighbour+systemsize));//b_{l}^\dagger b_{l-e_y}^\dagger \delta = -e_x
-                    
-                    gsl_matrix_set(jx,site,ynegneighbour+systemsize,
-                               -xprefactorb*(yprefactorb+1)
-                               +gsl_matrix_get(jx,site,ynegneighbour+systemsize));
-                    
-                    gsl_matrix_set(jy,yposneighbour,site+systemsize,
-                               -xprefactorb*(yprefactora+1)
-                               +gsl_matrix_get(jy,yposneighbour,site+systemsize));//b_{l+e_y}^\dagger b_{l}^\dagger \delta = -e_x
+                gsl_matrix_set(jx,x*ysize+yafter,xafter*ysize+y,0.25*((yprefactora-1)*(xprefactora-1)-(yprefactora+1)*(xprefactora+1))+gsl_matrix_get(jx,x*ysize+yafter,xafter*ysize+y));//b_{l+e_y}^\dagger b_{l+e_x}
+                gsl_matrix_set(jy,x*ysize+yafter,xafter*ysize+y,-0.25*((yprefactora-1)*(xprefactora-1)-(yprefactora+1)*(xprefactora+1))+gsl_matrix_get(jy,x*ysize+yafter,xafter*ysize+y));
+                gsl_matrix_set(jx,x*ysize+ybefore,xafter*ysize+y,0.25*((yprefactorb-1)*(xprefactora-1)-(yprefactorb+1)*(xprefactora+1))+gsl_matrix_get(jx,x*ysize+ybefore,xafter*ysize+y));//b_{l-e_y}^\dagger b_{l+e_x} 
+                gsl_matrix_set(jy,x*ysize+ybefore,xafter*ysize+y,0.25*((yprefactorb-1)*(xprefactora-1)-(yprefactorb+1)*(xprefactora+1))+gsl_matrix_get(jy,x*ysize+ybefore,xafter*ysize+y));
+                gsl_matrix_set(jx,x*ysize+yafter,xbefore*ysize+y,-0.25*((yprefactora-1)*(xprefactorb-1)-(yprefactora+1)*(xprefactorb+1))+gsl_matrix_get(jx,x*ysize+yafter,xbefore*ysize+y));//b_{l+e_y}^\dagger b_{l-e_x} 
+                gsl_matrix_set(jy,x*ysize+yafter,xbefore*ysize+y,-0.25*((yprefactora-1)*(xprefactorb-1)-(yprefactora+1)*(xprefactorb+1))+gsl_matrix_get(jy,x*ysize+yafter,xbefore*ysize+y));
+                gsl_matrix_set(jx,x*ysize+ybefore,xbefore*ysize+y,-0.25*((yprefactorb-1)*(xprefactorb-1)-(yprefactorb+1)*(xprefactorb+1))+gsl_matrix_get(jx,x*ysize+ybefore,xbefore*ysize+y));//b_{l-e_y}^\dagger b_{l-e_x}
+                gsl_matrix_set(jy,x*ysize+ybefore,xbefore*ysize+y,0.25*((yprefactorb-1)*(xprefactorb-1)-(yprefactorb+1)*(xprefactorb+1))+gsl_matrix_get(jy,x*ysize+ybefore,xbefore*ysize+y));
                 
-                    gsl_matrix_set(jx,yposneighbour,site+systemsize,
-                               -xprefactorb*(yprefactora+1)
-                               +gsl_matrix_get(jx,yposneighbour,site+systemsize));
-                    
-                    gsl_matrix_set(jy,ynegneighbour,site+systemsize,
-                               xprefactorb*(yprefactorb+1)
-                               +gsl_matrix_get(jy,ynegneighbour,site+systemsize));//b_{l-e_y}^\dagger b_{l}^\dagger \delta = -e_x
-                    
-                    gsl_matrix_set(jx,ynegneighbour,site+systemsize,
-                               -xprefactorb*(yprefactorb+1)
-                               +gsl_matrix_get(jx,ynegneighbour,site+systemsize));
-                    
-                    gsl_matrix_set(jy,xnegneighbour,yposneighbour,
-                               0.25*((xprefactorb-1)*(yprefactora-1)-(xprefactorb+1)*(yprefactora+1))
-                               +gsl_matrix_get(jy,xnegneighbour,yposneighbour));//b_{l-e_x}^\dagger b_{l+e_y}
-                    
-                    gsl_matrix_set(jx,xnegneighbour,yposneighbour,
-                               0.25*((xprefactorb-1)*(yprefactora-1)-(xprefactorb+1)*(yprefactora+1))
-                               +gsl_matrix_get(jx,xnegneighbour,yposneighbour));
-                    
-                    gsl_matrix_set(jy,xnegneighbour,ynegneighbour,
-                               -0.25*((xprefactorb-1)*(yprefactorb-1)-(xprefactorb+1)*(yprefactorb+1))
-                               +gsl_matrix_get(jy,xnegneighbour,ynegneighbour));//b_{l-e_x}^\dagger b_{l-e_y}
-                    
-                    gsl_matrix_set(jx,xnegneighbour,ynegneighbour,
-                               0.25*((xprefactorb-1)*(yprefactorb-1)-(xprefactorb+1)*(yprefactorb+1))
-                               +gsl_matrix_get(jx,xnegneighbour,ynegneighbour));
-                    
-                    gsl_matrix_set(jy,xnegneighbour,yposneighbour+systemsize,
-                               -0.5*((xprefactorb-1)*(yprefactora+1))
-                               +gsl_matrix_get(jy,xnegneighbour,yposneighbour+systemsize));//b_{l-e_x}^\dagger b_{l+e_y}^\dagger
-                    
-                    gsl_matrix_set(jx,xnegneighbour,yposneighbour+systemsize,
-                               -0.5*((xprefactorb-1)*(yprefactora+1))
-                               +gsl_matrix_get(jx,xnegneighbour,yposneighbour+systemsize));
-                    
-                    gsl_matrix_set(jy,xnegneighbour,ynegneighbour+systemsize,
-                               0.5*((xprefactorb-1)*(yprefactorb+1))
-                               +gsl_matrix_get(jy,xnegneighbour,ynegneighbour+systemsize));//b_{l-e_x}^\dagger b_{l-e_y}^\dagger
-                    
-                    gsl_matrix_set(jx,xnegneighbour,ynegneighbour+systemsize,
-                               -0.5*((xprefactorb-1)*(yprefactorb+1))
-                               +gsl_matrix_get(jx,xnegneighbour,ynegneighbour+systemsize));
-                    
-                    gsl_matrix_set(jy,yposneighbour,xnegneighbour+systemsize,
-                               -0.5*((xprefactorb-1)*(yprefactora+1))
-                               +gsl_matrix_get(jy,yposneighbour,xnegneighbour+systemsize));//b_{l+e_y}^\dagger b_{l-e_x}^\dagger
-                    
-                    gsl_matrix_set(jx,yposneighbour,xnegneighbour+systemsize,
-                               -0.5*((xprefactorb-1)*(yprefactora+1))
-                               +gsl_matrix_get(jx,yposneighbour,xnegneighbour+systemsize));
-                    
-                    gsl_matrix_set(jy,ynegneighbour,xnegneighbour+systemsize,
-                               0.5*((xprefactorb-1)*(yprefactorb+1))
-                               +gsl_matrix_get(jy,ynegneighbour,xnegneighbour+systemsize));//b_{l-e_y}^\dagger b_{l-e_x}^\dagger
-                    
-                    gsl_matrix_set(jx,ynegneighbour,xnegneighbour+systemsize,
-                               -0.5*((xprefactorb-1)*(yprefactorb+1))
-                               +gsl_matrix_get(jx,ynegneighbour,xnegneighbour+systemsize));
-                }
+                gsl_matrix_set(jx,x*ysize+yafter,xafter*ysize+y+systemsize,-0.5*((yprefactora-1)*(xprefactora+1))+gsl_matrix_get(jx,x*ysize+yafter,xafter*ysize+y+systemsize));//b_{l+e_y}^\dagger b_{l+e_x}^\dagger
+                gsl_matrix_set(jy,x*ysize+yafter,xafter*ysize+y+systemsize,0.5*((yprefactora-1)*(xprefactora+1))+gsl_matrix_get(jy,x*ysize+yafter,xafter*ysize+y+systemsize));
+                gsl_matrix_set(jx,x*ysize+ybefore,xafter*ysize+y+systemsize,-0.5*((yprefactorb-1)*(xprefactora+1))+gsl_matrix_get(jx,x*ysize+ybefore,xafter*ysize+y+systemsize));//b_{l-e_y}^\dagger b_{l+e_x}^\dagger 
+                gsl_matrix_set(jy,x*ysize+ybefore,xafter*ysize+y+systemsize,-0.5*((yprefactorb-1)*(xprefactora+1))+gsl_matrix_get(jy,x*ysize+ybefore,xafter*ysize+y+systemsize));
+                gsl_matrix_set(jx,x*ysize+yafter,xbefore*ysize+y+systemsize,0.5*((yprefactora-1)*(xprefactorb+1))+gsl_matrix_get(jx,x*ysize+yafter,xbefore*ysize+y+systemsize));//b_{l+e_y}^\dagger b_{l-e_x}^\dagger
+                gsl_matrix_set(jy,x*ysize+yafter,xbefore*ysize+y+systemsize,0.5*((yprefactora-1)*(xprefactorb+1))+gsl_matrix_get(jy,x*ysize+yafter,xbefore*ysize+y+systemsize));
+                gsl_matrix_set(jx,x*ysize+ybefore,xbefore*ysize+y+systemsize,0.5*((yprefactorb-1)*(xprefactorb+1))+gsl_matrix_get(jx,x*ysize+ybefore,xbefore*ysize+y+systemsize));//b_{l-e_y}^\dagger b_{l-e_x}^\dagger
+                gsl_matrix_set(jy,x*ysize+ybefore,xbefore*ysize+y+systemsize,-0.5*((yprefactorb-1)*(xprefactorb+1))+gsl_matrix_get(jy,x*ysize+ybefore,xbefore*ysize+y+systemsize));
+                        
+                gsl_matrix_set(jx,xafter*ysize+y,x*ysize+yafter+systemsize,-0.5*((yprefactora-1)*(xprefactora+1))+gsl_matrix_get(jx,xafter*ysize+y,x*ysize+yafter+systemsize));//b_{l+e_x}^\dagger b_{l+e_y}^\dagger
+                gsl_matrix_set(jy,xafter*ysize+y,x*ysize+yafter+systemsize,0.5*((yprefactora-1)*(xprefactora+1))+gsl_matrix_get(jy,xafter*ysize+y,x*ysize+yafter+systemsize));
+                gsl_matrix_set(jx,xafter*ysize+y,x*ysize+ybefore+systemsize,-0.5*((yprefactorb-1)*(xprefactora+1))+gsl_matrix_get(jx,xafter*ysize+y,x*ysize+ybefore+systemsize));//b_{l+e_x}^\dagger b_{l-e_y}^\dagger 
+                gsl_matrix_set(jy,xafter*ysize+y,x*ysize+ybefore+systemsize,-0.5*((yprefactorb-1)*(xprefactora+1))+gsl_matrix_get(jy,xafter*ysize+y,x*ysize+ybefore+systemsize));
+                gsl_matrix_set(jx,xbefore*ysize+y,x*ysize+yafter+systemsize,0.5*((yprefactora-1)*(xprefactorb+1))+gsl_matrix_get(jx,xbefore*ysize+y,x*ysize+yafter+systemsize));//b_{l-e_x}^\dagger b_{l+e_y}^\dagger
+                gsl_matrix_set(jy,xbefore*ysize+y,x*ysize+yafter+systemsize,0.5*((yprefactora-1)*(xprefactorb+1))+gsl_matrix_get(jy,xbefore*ysize+y,x*ysize+yafter+systemsize));
+                gsl_matrix_set(jx,xbefore*ysize+y,x*ysize+ybefore+systemsize,0.5*((yprefactorb-1)*(xprefactorb+1))+gsl_matrix_get(jx,xbefore*ysize+y,x*ysize+ybefore+systemsize));//b_{l-e_x}^\dagger b_{l-e_y}^\dagger
+                gsl_matrix_set(jy,xbefore*ysize+y,x*ysize+ybefore+systemsize,-0.5*((yprefactorb-1)*(xprefactorb+1))+gsl_matrix_get(jy,xbefore*ysize+y,x*ysize+ybefore+systemsize));
+                
+                //\Delta=\pm e_y
+                
+                gsl_matrix_set(jy,x*ysize+y,x*ysize+yafter,0.5*xprefactora*(yprefactora-1)+gsl_matrix_get(jy,x*ysize+y,x*ysize+yafter));//b_{l}^\dagger b_{l+e_y}  \delta = +e_x
+                gsl_matrix_set(jx,x*ysize+y,x*ysize+yafter,-0.5*xprefactora*(yprefactora-1)+gsl_matrix_get(jx,x*ysize+y,x*ysize+yafter));
+                gsl_matrix_set(jy,x*ysize+y,x*ysize+yafter,0.5*xprefactorb*(yprefactora-1)+gsl_matrix_get(jy,x*ysize+y,x*ysize+yafter));//b_{l}^\dagger b_{l+e_y} \delta = -e_x
+                gsl_matrix_set(jx,x*ysize+y,x*ysize+yafter,0.5*xprefactorb*(yprefactora-1)+gsl_matrix_get(jx,x*ysize+y,x*ysize+yafter));
+                gsl_matrix_set(jy,x*ysize+y,x*ysize+ybefore,-0.5*xprefactora*(yprefactorb-1)+gsl_matrix_get(jy,x*ysize+y,x*ysize+ybefore));//b_{l}^\dagger b_{l-e_y} \delta = +e_x
+                gsl_matrix_set(jx,x*ysize+y,x*ysize+ybefore,-0.5*xprefactora*(yprefactorb-1)+gsl_matrix_get(jx,x*ysize+y,x*ysize+ybefore));                        
+                gsl_matrix_set(jy,x*ysize+y,x*ysize+ybefore,-0.5*xprefactorb*(yprefactorb-1)+gsl_matrix_get(jy,x*ysize+y,x*ysize+ybefore));//b_{l}^\dagger b_{l-e_y} \delta = -e_x
+                gsl_matrix_set(jx,x*ysize+y,x*ysize+ybefore,0.5*xprefactorb*(yprefactorb-1)+gsl_matrix_get(jx,x*ysize+y,x*ysize+ybefore));
+                        
+                gsl_matrix_set(jy,x*ysize+yafter,x*ysize+y,-0.5*xprefactora*(yprefactora-1)+gsl_matrix_get(jy,x*ysize+yafter,x*ysize+y));//b_{l+e_y}^\dagger b_{l}  \delta = +e_x
+                gsl_matrix_set(jx,x*ysize+yafter,x*ysize+y,0.5*xprefactora*(yprefactora-1)+gsl_matrix_get(jx,x*ysize+yafter,x*ysize+y));
+                gsl_matrix_set(jy,x*ysize+yafter,x*ysize+y,-0.5*xprefactorb*(yprefactora-1)+gsl_matrix_get(jy,x*ysize+yafter,x*ysize+y));//b_{l+e_y}^\dagger b_{l} \delta = -e_x
+                gsl_matrix_set(jx,x*ysize+yafter,x*ysize+y,-0.5*xprefactorb*(yprefactora-1)+gsl_matrix_get(jx,x*ysize+yafter,x*ysize+y));
+                gsl_matrix_set(jy,x*ysize+ybefore,x*ysize+y,0.5*xprefactora*(yprefactorb-1)+gsl_matrix_get(jy,x*ysize+ybefore,x*ysize+y));//b_{l-e_y}^\dagger b_{l} \delta = +e_x
+                gsl_matrix_set(jx,x*ysize+ybefore,x*ysize+y,0.5*xprefactora*(yprefactorb-1)+gsl_matrix_get(jx,x*ysize+ybefore,x*ysize+y));                        
+                gsl_matrix_set(jy,x*ysize+ybefore,x*ysize+y,0.5*xprefactorb*(yprefactorb-1)+gsl_matrix_get(jy,x*ysize+ybefore,x*ysize+y));//b_{l-e_y}^\dagger b_{l} \delta = -e_x
+                gsl_matrix_set(jx,x*ysize+ybefore,x*ysize+y,-0.5*xprefactorb*(yprefactorb-1)+gsl_matrix_get(jx,x*ysize+ybefore,x*ysize+y));
+                        
+                gsl_matrix_set(jy,x*ysize+y,x*ysize+yafter+systemsize,xprefactora*(yprefactora+1)+gsl_matrix_get(jy,x*ysize+y,x*ysize+yafter+systemsize));//b_{l}^\dagger b_{l+e_y}^\dagger  \delta = +e_x 
+                gsl_matrix_set(jx,x*ysize+y,x*ysize+yafter+systemsize,-xprefactora*(yprefactora+1)+gsl_matrix_get(jx,x*ysize+y,x*ysize+yafter+systemsize));
+                gsl_matrix_set(jy,x*ysize+y,x*ysize+yafter+systemsize,xprefactorb*(yprefactora+1)+gsl_matrix_get(jy,x*ysize+y,x*ysize+yafter+systemsize));//b_{l}^\dagger b_{l+e_y}^\dagger \delta = -e_x
+                gsl_matrix_set(jx,x*ysize+y,x*ysize+yafter+systemsize,xprefactorb*(yprefactora+1)+gsl_matrix_get(jx,x*ysize+y,x*ysize+yafter+systemsize));
+                gsl_matrix_set(jy,x*ysize+y,x*ysize+ybefore+systemsize,-xprefactora*(yprefactorb+1)+gsl_matrix_get(jy,x*ysize+y,x*ysize+ybefore+systemsize));//b_{l}^\dagger b_{l-e_y}^\dagger \delta = +e_x
+                gsl_matrix_set(jx,x*ysize+y,x*ysize+ybefore+systemsize,-xprefactora*(yprefactorb+1)+gsl_matrix_get(jx,x*ysize+y,x*ysize+ybefore+systemsize));                        
+                gsl_matrix_set(jy,x*ysize+y,x*ysize+ybefore+systemsize,-xprefactorb*(yprefactorb+1)+gsl_matrix_get(jy,x*ysize+y,x*ysize+ybefore+systemsize));//b_{l}^\dagger b_{l-e_y}^\dagger \delta = -e_x
+                gsl_matrix_set(jx,x*ysize+y,x*ysize+ybefore+systemsize,xprefactorb*(yprefactorb+1)+gsl_matrix_get(jx,x*ysize+y,x*ysize+ybefore+systemsize));
+                        
+                gsl_matrix_set(jy,x*ysize+yafter,x*ysize+y+systemsize,xprefactora*(yprefactora+1)+gsl_matrix_get(jy,x*ysize+yafter,x*ysize+y+systemsize));//b_{l+e_y}^\dagger b_{l}^\dagger  \delta = +e_x
+                gsl_matrix_set(jx,x*ysize+yafter,x*ysize+y+systemsize,-xprefactora*(yprefactora+1)+gsl_matrix_get(jx,x*ysize+yafter,x*ysize+y+systemsize));
+                gsl_matrix_set(jy,x*ysize+yafter,x*ysize+y+systemsize,xprefactorb*(yprefactora+1)+gsl_matrix_get(jy,x*ysize+yafter,x*ysize+y+systemsize));//b_{l+e_y}^\dagger b_{l}^\dagger \delta = -e_x
+                gsl_matrix_set(jx,x*ysize+yafter,x*ysize+y+systemsize,xprefactorb*(yprefactora+1)+gsl_matrix_get(jx,x*ysize+yafter,x*ysize+y+systemsize));
+                gsl_matrix_set(jy,x*ysize+ybefore,x*ysize+y+systemsize,-xprefactora*(yprefactorb+1)+gsl_matrix_get(jy,x*ysize+ybefore,x*ysize+y+systemsize));//b_{l-e_y}^\dagger b_{l}^\dagger \delta = +e_x
+                gsl_matrix_set(jx,x*ysize+ybefore,x*ysize+y+systemsize,-xprefactora*(yprefactorb+1)+gsl_matrix_get(jx,x*ysize+ybefore,x*ysize+y+systemsize));                        
+                gsl_matrix_set(jy,x*ysize+ybefore,x*ysize+y+systemsize,-xprefactorb*(yprefactorb+1)+gsl_matrix_get(jy,x*ysize+ybefore,x*ysize+y+systemsize));//b_{l-e_y}^\dagger b_{l}^\dagger \delta = -e_x
+                gsl_matrix_set(jx,x*ysize+ybefore,x*ysize+y+systemsize,xprefactorb*(yprefactorb+1)+gsl_matrix_get(jx,x*ysize+ybefore,x*ysize+y+systemsize));
+                
+                gsl_matrix_set(jy,xafter*ysize+y,x*ysize+yafter,0.25*((xprefactora-1)*(yprefactora-1)-(xprefactora+1)*(yprefactora+1))+gsl_matrix_get(jy,xafter*ysize+y,x*ysize+yafter));//b_{l+e_x}^\dagger b_{l+e_y}
+                gsl_matrix_set(jx,xafter*ysize+y,x*ysize+yafter,-0.25*((xprefactora-1)*(yprefactora-1)-(xprefactora+1)*(yprefactora+1))+gsl_matrix_get(jx,xafter*ysize+y,x*ysize+yafter));
+                gsl_matrix_set(jy,xbefore*ysize+y,x*ysize+yafter,0.25*((xprefactorb-1)*(yprefactora-1)-(xprefactorb+1)*(yprefactora+1))+gsl_matrix_get(jy,xbefore*ysize+y,x*ysize+yafter));//b_{l-e_x}^\dagger b_{l+e_y} 
+                gsl_matrix_set(jx,xbefore*ysize+y,x*ysize+yafter,0.25*((xprefactorb-1)*(yprefactora-1)-(xprefactorb+1)*(yprefactora+1))+gsl_matrix_get(jx,xbefore*ysize+y,x*ysize+yafter));
+                gsl_matrix_set(jy,xafter*ysize+y,x*ysize+ybefore,-0.25*((xprefactora-1)*(yprefactorb-1)-(xprefactora+1)*(yprefactorb+1))+gsl_matrix_get(jy,xafter*ysize+y,x*ysize+ybefore));//b_{l+e_x}^\dagger b_{l-e_y} 
+                gsl_matrix_set(jx,xafter*ysize+y,x*ysize+ybefore,-0.25*((xprefactora-1)*(yprefactorb-1)-(xprefactora+1)*(yprefactorb+1))+gsl_matrix_get(jx,xafter*ysize+y,x*ysize+ybefore));
+                gsl_matrix_set(jy,xbefore*ysize+y,x*ysize+ybefore,-0.25*((xprefactorb-1)*(yprefactorb-1)-(xprefactorb+1)*(yprefactorb+1))+gsl_matrix_get(jy,xbefore*ysize+y,x*ysize+ybefore));//b_{l-e_x}^\dagger b_{l-e_y}
+                gsl_matrix_set(jx,xbefore*ysize+y,x*ysize+ybefore,0.25*((xprefactorb-1)*(yprefactorb-1)-(xprefactorb+1)*(yprefactorb+1))+gsl_matrix_get(jx,xbefore*ysize+y,x*ysize+ybefore));
+                        
+                gsl_matrix_set(jy,xafter*ysize+y,x*ysize+yafter+systemsize,-0.5*((xprefactora-1)*(yprefactora+1))+gsl_matrix_get(jy,xafter*ysize+y,x*ysize+yafter+systemsize));//b_{l+e_x}^\dagger b_{l+e_y}^\dagger
+                gsl_matrix_set(jx,xafter*ysize+y,x*ysize+yafter+systemsize,0.5*((xprefactora-1)*(yprefactora+1))+gsl_matrix_get(jx,xafter*ysize+y,x*ysize+yafter+systemsize));
+                gsl_matrix_set(jy,xbefore*ysize+y,x*ysize+yafter+systemsize,-0.5*((xprefactorb-1)*(yprefactora+1))+gsl_matrix_get(jy,xbefore*ysize+y,x*ysize+yafter+systemsize));//b_{l-e_x}^\dagger b_{l+e_y}^\dagger 
+                gsl_matrix_set(jx,xbefore*ysize+y,x*ysize+yafter+systemsize,-0.5*((xprefactorb-1)*(yprefactora+1))+gsl_matrix_get(jx,xbefore*ysize+y,x*ysize+yafter+systemsize));
+                gsl_matrix_set(jy,xafter*ysize+y,x*ysize+ybefore+systemsize,0.5*((xprefactora-1)*(yprefactorb+1))+gsl_matrix_get(jy,xafter*ysize+y,x*ysize+ybefore+systemsize));//b_{l+e_x}^\dagger b_{l-e_y}^\dagger
+                gsl_matrix_set(jx,xafter*ysize+y,x*ysize+ybefore+systemsize,0.5*((xprefactora-1)*(yprefactorb+1))+gsl_matrix_get(jx,xafter*ysize+y,x*ysize+ybefore+systemsize));
+                gsl_matrix_set(jy,xbefore*ysize+y,x*ysize+ybefore+systemsize,0.5*((xprefactorb-1)*(yprefactorb+1))+gsl_matrix_get(jy,xbefore*ysize+y,x*ysize+ybefore+systemsize));//b_{l-e_x}^\dagger b_{l-e_y}^\dagger
+                gsl_matrix_set(jx,xbefore*ysize+y,x*ysize+ybefore+systemsize,-0.5*((xprefactorb-1)*(yprefactorb+1))+gsl_matrix_get(jx,xbefore*ysize+y,x*ysize+ybefore+systemsize));
+                        
+                gsl_matrix_set(jy,x*ysize+yafter,xafter*ysize+y+systemsize,-0.5*((xprefactora-1)*(yprefactora+1))+gsl_matrix_get(jy,x*ysize+yafter,xafter*ysize+y+systemsize));//b_{l+e_y}^\dagger b_{l+e_x}^\dagger
+                gsl_matrix_set(jx,x*ysize+yafter,xafter*ysize+y+systemsize,0.5*((xprefactora-1)*(yprefactora+1))+gsl_matrix_get(jx,x*ysize+yafter,xafter*ysize+y+systemsize));
+                gsl_matrix_set(jy,x*ysize+yafter,xbefore*ysize+y+systemsize,-0.5*((xprefactorb-1)*(yprefactora+1))+gsl_matrix_get(jy,x*ysize+yafter,xbefore*ysize+y+systemsize));//b_{l+e_y}^\dagger b_{l-e_x}^\dagger 
+                gsl_matrix_set(jx,x*ysize+yafter,xbefore*ysize+y+systemsize,-0.5*((xprefactorb-1)*(yprefactora+1))+gsl_matrix_get(jx,x*ysize+yafter,xbefore*ysize+y+systemsize));
+                gsl_matrix_set(jy,x*ysize+ybefore,xafter*ysize+y+systemsize,0.5*((xprefactora-1)*(yprefactorb+1))+gsl_matrix_get(jy,x*ysize+ybefore,xafter*ysize+y+systemsize));//b_{l-e_y}^\dagger b_{l+e_x}^\dagger
+                gsl_matrix_set(jx,x*ysize+ybefore,xafter*ysize+y+systemsize,0.5*((xprefactora-1)*(yprefactorb+1))+gsl_matrix_get(jx,x*ysize+ybefore,xafter*ysize+y+systemsize));
+                gsl_matrix_set(jy,x*ysize+ybefore,xbefore*ysize+y+systemsize,0.5*((xprefactorb-1)*(yprefactorb+1))+gsl_matrix_get(jy,x*ysize+ybefore,xbefore*ysize+y+systemsize));//b_{l-e_y}^\dagger b_{l-e_x}^\dagger
+                gsl_matrix_set(jx,x*ysize+ybefore,xbefore*ysize+y+systemsize,-0.5*((xprefactorb-1)*(yprefactorb+1))+gsl_matrix_get(jx,x*ysize+ybefore,xbefore*ysize+y+systemsize));
+
             }
         }
 
@@ -734,9 +346,10 @@ int main(){
         //multiply by prefactor S^2J^2/8
         gsl_matrix_scale(jx,0.125*S*S*J*J);
         gsl_matrix_scale(jy,0.125*S*S*J*J);
+        
 
         //if(count==1){
-        if(count==Dmax*100){
+        if(count==(int)(Dmax/Dincrement)/1000){
             ostringstream fx;
             fx << "jxa.dat";
             ofstream writex(fx.str().c_str());
@@ -770,10 +383,68 @@ int main(){
         gsl_matrix_free(njx);
         gsl_matrix_free(njy);
         
+        
+        //Fourier-transform current operators
+        /*
+        gsl_matrix_complex* zjx = gsl_matrix_complex_alloc(2*systemsize,2*systemsize);
+        gsl_matrix_complex* zjy = gsl_matrix_complex_alloc(2*systemsize,2*systemsize);
+        for(int x=0;x<2*systemsize;x++){
+            for(int y=0;y<2*systemsize;y++){
+                gsl_matrix_complex_set(zjx,x,y,gsl_complex_rect(gsl_matrix_get(jx,x,y),0.0));
+                gsl_matrix_complex_set(zjy,x,y,gsl_complex_rect(gsl_matrix_get(jy,x,y),0.0));
+            }
+        }
+        gsl_matrix_complex* fourier = gsl_matrix_complex_alloc(2*systemsize,2*systemsize);
+        double fourierexponent;
+        for(int x=0;x<xsize;x++){
+            for(int y=0;y<ysize;y++){
+                for(int kx=0;kx<xsize;kx++){
+                    for(int ky=0;ky<ysize;ky++){
+                        fourierexponent = 2*M_PI*(kx*x*1.0/xsize+ky*y*1.0/ysize);
+                        gsl_matrix_complex_set(fourier,x*ysize+y,kx*ysize+ky,gsl_complex_polar(sqrt(1.0/(xsize*ysize)),fourierexponent));
+                        gsl_matrix_complex_set(fourier,x*ysize+y+systemsize,kx*ysize+ky,gsl_complex_rect(0.0,0.0));
+                        gsl_matrix_complex_set(fourier,x*ysize+y,kx*ysize+ky+systemsize,gsl_complex_rect(0.0,0.0));
+                        gsl_matrix_complex_set(fourier,x*ysize+y+systemsize,kx*ysize+ky+systemsize,gsl_complex_polar(sqrt(1.0/(xsize*ysize)),fourierexponent));
+                    }
+                }
+            }
+        }
+        
+        gsl_matrix_complex* helpzmatrix = gsl_matrix_complex_alloc(2*systemsize,2*systemsize);
+        gsl_blas_zgemm(CblasConjTrans, CblasNoTrans, gsl_complex_rect(1.0,0.0), fourier, zjx, gsl_complex_rect(0.0,0.0), helpzmatrix);
+        gsl_blas_zgemm(CblasNoTrans, CblasNoTrans, gsl_complex_rect(1.0,0.0), helpzmatrix, fourier, gsl_complex_rect(0.0,0.0), zjx);
+        for(int x=0;x<2*systemsize;x++){
+            for(int y=0;y<2*systemsize;y++){
+                gsl_matrix_set(jx,x,y,GSL_IMAG(gsl_matrix_complex_get(zjx,x,y)));
+            }
+        }
+
+        gsl_blas_zgemm(CblasConjTrans, CblasNoTrans, gsl_complex_rect(1.0,0.0), fourier, zjy, gsl_complex_rect(0.0,0.0), helpzmatrix);
+        gsl_blas_zgemm(CblasNoTrans, CblasNoTrans, gsl_complex_rect(1.0,0.0), helpzmatrix, fourier, gsl_complex_rect(0.0,0.0), zjy);
+        for(int x=0;x<2*systemsize;x++){
+            for(int y=0;y<2*systemsize;y++){
+                gsl_matrix_set(jy,x,y,GSL_IMAG(gsl_matrix_complex_get(zjy,x,y)));
+            }
+        }
+    
+        gsl_matrix_complex_free(zjx);
+        gsl_matrix_complex_free(zjy);
+        gsl_matrix_complex_free(helpzmatrix);
+        gsl_matrix_complex_free(fourier);
+        
+        /*if(count==(int)(Dmax/Dincrement)/1000){
+        //if(count==1){
+            for(int x=0;x<2*systemsize;x++){
+                for(int y=0;y<2*systemsize;y++){
+                    cout << gsl_matrix_get(jx,x,y) << '\t';
+                }
+                cout << '\n';
+            }
+        }*/
+        
         //read Bogoliubov matrix
         ostringstream fin2;
-        fin2 << "Bogoliubov/eigenvectorD" << D*100 << "cJxsize" << xsize 
-            << "ysize" << ysize << "fieldsize" << fieldsize << ".dat";;
+        fin2 << "Bogoliubov/eigenvectorD" << D*100 << "cJxsize" << xsize << "ysize" << ysize << "fieldsize" << fieldsize << ".dat";
         ifstream read2(fin2.str().c_str(),ios_base::binary);
         gsl_matrix* bogo = gsl_matrix_alloc(2*systemsize,2*systemsize);
         for(int x=0;x<2*systemsize;x++){
@@ -956,7 +627,7 @@ int main(){
         gsl_matrix_free(bogojx);
         gsl_matrix_free(bogojy);
     
-        cerr << 0.01*count << "\r";
+        cerr << count/((Dmax/Dincrement)/1000) << "\r";
     }
     writefield.close();
     }
@@ -1002,131 +673,68 @@ void commutator(gsl_matrix *A, gsl_matrix *B, gsl_matrix *C){
 
 void energydensity(double *texture, gsl_matrix *edmatrix, int x, int y, double *D){
     double xprefactora,xprefactorb,yprefactora,yprefactorb;
-    int site,xnegneighbour,xposneighbour,ynegneighbour,yposneighbour;
-    
+    int xbefore,xafter,ybefore,yafter;
     gsl_matrix_set_zero(edmatrix);
-    site = x*ysize + y;
-    xnegneighbour = (x-1)*ysize+y;
-    xposneighbour = (x+1)*ysize+y;
-    ynegneighbour = x*ysize+y-1;
-    yposneighbour = x*ysize+y+1;
+    
+    if(x==0){
+        xbefore = xsize-1;
+        xafter = x+1;
+    }
+    else{
+        xbefore = x-1;
+        xafter = (x+1)%xsize;
+    }
+                    
     if(y==0){
-        ynegneighbour = x*ysize+ysize-1;
+        ybefore = ysize-1;
+        yafter = y+1;
     }
-    if(y==ysize-1){
-        yposneighbour = x*ysize;
-    }
-    if(x<xsize-1){
-        xprefactora = cos(texture[site]-texture[xposneighbour]+M_PI) 
-                      +D[site] * sin(texture[site]-texture[xposneighbour]+M_PI);
-    }
-    if(x>0){
-        xprefactorb = cos(texture[xnegneighbour]-texture[site]+M_PI)
-                      +D[xnegneighbour] * sin(texture[xnegneighbour]-texture[site]+M_PI);
-    }
-    yprefactora = cos(texture[site]-texture[yposneighbour]+M_PI);
-    yprefactorb = cos(texture[ynegneighbour]-texture[site]+M_PI);
-    
-    //ATTENTION diagonal terms have epsilon addend!!!
-    if(x<xsize-1){
-        gsl_matrix_set(edmatrix,site,xposneighbour,
-                       -0.25*(xprefactora-1)
-                       +gsl_matrix_get(edmatrix,site,xposneighbour));//b_l^\dagger b_{l+1}
-        
-        gsl_matrix_set(edmatrix,xposneighbour,site,
-                       -0.25*(xprefactora-1)
-                       +gsl_matrix_get(edmatrix,xposneighbour,site));//b_{l+1}^\dagger b_{l}
-        
-        gsl_matrix_set(edmatrix,xposneighbour,xposneighbour,
-                       0.5*xprefactora+epsilon
-                       +gsl_matrix_get(edmatrix,xposneighbour,xposneighbour));//b_{l+1}^\dagger b_{l+1}
-        
-        gsl_matrix_set(edmatrix,site,site,
-                       0.5*xprefactora+epsilon
-                       +gsl_matrix_get(edmatrix,site,site));//b_l^\dagger b_{l}
-        
-        gsl_matrix_set(edmatrix,xposneighbour,site+systemsize,
-                       -0.25*(xprefactora+1)
-                       +gsl_matrix_get(edmatrix,xposneighbour,site+systemsize));//b_{l+1}^\dagger b_l^\dagger
-        
-        gsl_matrix_set(edmatrix,site,xposneighbour+systemsize,
-                       -0.25*(xprefactora+1)
-                       +gsl_matrix_get(edmatrix,site,xposneighbour+systemsize));//b_l^\dagger b_{l+1}^\dagger
+    else{
+        ybefore = y-1;
+        yafter = (y+1)%ysize;
     }
     
-    if(x>0){
-        gsl_matrix_set(edmatrix,site,xnegneighbour,
-                       -0.25*(xprefactorb-1)
-                       +gsl_matrix_get(edmatrix,site,xnegneighbour));//b_l^\dagger b_{l-1}
-        
-        gsl_matrix_set(edmatrix,xnegneighbour,site,
-                       -0.25*(xprefactorb-1)
-                       +gsl_matrix_get(edmatrix,xnegneighbour,site));//b_{l-1}^\dagger b_{l}
-        
-        gsl_matrix_set(edmatrix,xnegneighbour,xnegneighbour,
-                       0.5*xprefactorb+epsilon
-                       +gsl_matrix_get(edmatrix,xnegneighbour,xnegneighbour));//b_{l-1}^\dagger b_{l-1}
-        
-        gsl_matrix_set(edmatrix,site,site,
-                       0.5*xprefactorb+epsilon
-                       +gsl_matrix_get(edmatrix,site,site));//b_l^\dagger b_{l}
-        
-        gsl_matrix_set(edmatrix,site,xnegneighbour+systemsize,
-                       -0.25*(xprefactorb+1)
-                       +gsl_matrix_get(edmatrix,site,xnegneighbour+systemsize));//b_l^\dagger b_{l-1}^\dagger
-        
-        gsl_matrix_set(edmatrix,xnegneighbour,site+systemsize,
-                       -0.25*(xprefactorb+1)
-                       +gsl_matrix_get(edmatrix,xnegneighbour,site+systemsize));//b_{l-1}^\dagger b_l^\dagger
-    }
+    xprefactora = cos(texture[x*ysize+y]-texture[xafter*ysize+y])- D[x*ysize+y]*sin(texture[x*ysize+y]-texture[xafter*ysize+y]);
+    xprefactorb = cos(texture[x*ysize+y]-texture[xbefore*ysize+y])-D[x*ysize+y]*sin(texture[x*ysize+y]-texture[xbefore*ysize+y]);
+    yprefactora = cos(texture[x*ysize+y]-texture[x*ysize+yafter])- D[x*ysize+y]*sin(texture[x*ysize+y]-texture[x*ysize+yafter]);
+    yprefactorb = cos(texture[x*ysize+y]-texture[x*ysize+ybefore])-D[x*ysize+y]*sin(texture[x*ysize+y]-texture[x*ysize+ybefore]);
     
-    gsl_matrix_set(edmatrix,site,yposneighbour,
-                       -0.25*(yprefactora-1)
-                       +gsl_matrix_get(edmatrix,site,yposneighbour));//b_l^\dagger b_{l+1}
-        
-    gsl_matrix_set(edmatrix,site,ynegneighbour,
-                       -0.25*(yprefactorb-1)
-                       +gsl_matrix_get(edmatrix,site,ynegneighbour));//b_l^\dagger b_{l-1}
+    //ATTENTION diagonal terms have epsilon addent!!!
+    gsl_matrix_set(edmatrix,x*ysize+y,xafter*ysize+y,0.25*(xprefactora-1)+gsl_matrix_get(edmatrix,x*ysize+y,xafter*ysize+y));//b_l^\dagger b_{l+1}
+    gsl_matrix_set(edmatrix,x*ysize+y,xbefore*ysize+y,0.25*(xprefactorb-1)+gsl_matrix_get(edmatrix,x*ysize+y,xbefore*ysize+y));//b_l^\dagger b_{l-1}
     
-    gsl_matrix_set(edmatrix,yposneighbour,site,
-                       -0.25*(yprefactora-1)
-                       +gsl_matrix_get(edmatrix,yposneighbour,site));//b_{l+1}^\dagger b_{l}
+    gsl_matrix_set(edmatrix,xafter*ysize+y,x*ysize+y,0.25*(xprefactora-1)+gsl_matrix_get(edmatrix,xafter*ysize+y,x*ysize+y));//b_{l+1}^\dagger b_{l}
+    gsl_matrix_set(edmatrix,xbefore*ysize+y,x*ysize+y,0.25*(xprefactorb-1)+gsl_matrix_get(edmatrix,xbefore*ysize+y,x*ysize+y));//b_{l-1}^\dagger b_{l}
         
-    gsl_matrix_set(edmatrix,ynegneighbour,site,
-                       -0.25*(yprefactorb-1)
-                       +gsl_matrix_get(edmatrix,ynegneighbour,site));//b_{l-1}^\dagger b_{l}
+    gsl_matrix_set(edmatrix,x*ysize+y,x*ysize+yafter,0.25*(yprefactora-1)+gsl_matrix_get(edmatrix,x*ysize+y,x*ysize+yafter));//b_l^\dagger b_{l+1}
+    gsl_matrix_set(edmatrix,x*ysize+y,x*ysize+ybefore,0.25*(yprefactorb-1)+gsl_matrix_get(edmatrix,x*ysize+y,x*ysize+ybefore));//b_l^\dagger b_{l-1}
+    
+    gsl_matrix_set(edmatrix,x*ysize+yafter,x*ysize+y,0.25*(yprefactora-1)+gsl_matrix_get(edmatrix,x*ysize+yafter,x*ysize+y));//b_{l+1}^\dagger b_{l}
+    gsl_matrix_set(edmatrix,x*ysize+ybefore,x*ysize+y,0.25*(yprefactorb-1)+gsl_matrix_get(edmatrix,x*ysize+ybefore,x*ysize+y));//b_{l-1}^\dagger b_{l}
 
-    gsl_matrix_set(edmatrix,yposneighbour,yposneighbour,
-                       0.5*yprefactora+epsilon
-                       +gsl_matrix_get(edmatrix,yposneighbour,yposneighbour));//b_{l+1}^\dagger b_{l+1}
-        
-    gsl_matrix_set(edmatrix,ynegneighbour,ynegneighbour,
-                       0.5*yprefactorb+epsilon
-                       +gsl_matrix_get(edmatrix,ynegneighbour,ynegneighbour));//b_{l-1}^\dagger b_{l-1}
+    gsl_matrix_set(edmatrix,x*ysize+yafter,x*ysize+yafter,0.5*yprefactora+epsilon+gsl_matrix_get(edmatrix,x*ysize+yafter,x*ysize+yafter));//b_{l+1}^\dagger b_{l+1}
+    gsl_matrix_set(edmatrix,x*ysize+ybefore,x*ysize+ybefore,0.5*yprefactorb+epsilon+gsl_matrix_get(edmatrix,x*ysize+ybefore,x*ysize+ybefore));//b_{l-1}^\dagger b_{l-1}
     
-    gsl_matrix_set(edmatrix,site,site,
-                       0.5*yprefactora+epsilon
-                       +gsl_matrix_get(edmatrix,site,site));//b_l^\dagger b_{l}
-        
-    gsl_matrix_set(edmatrix,site,site,
-                       0.5*yprefactorb+epsilon
-                       +gsl_matrix_get(edmatrix,site,site));//b_l^\dagger b_{l}
+    gsl_matrix_set(edmatrix,xafter*ysize+y,xafter*ysize+y,0.5*xprefactora+epsilon+gsl_matrix_get(edmatrix,xafter*ysize+y,xafter*ysize+y));//b_{l+1}^\dagger b_{l+1}
+    gsl_matrix_set(edmatrix,xbefore*ysize+y,xbefore*ysize+y,0.5*xprefactorb+epsilon+gsl_matrix_get(edmatrix,xbefore*ysize+y,xbefore*ysize+y));//b_{l-1}^\dagger b_{l-1}
     
-    gsl_matrix_set(edmatrix,site,yposneighbour+systemsize,
-                       -0.25*(yprefactora+1)
-                       +gsl_matrix_get(edmatrix,site,yposneighbour+systemsize));//b_l^\dagger b_{l+1}^\dagger
-        
-    gsl_matrix_set(edmatrix,site,ynegneighbour+systemsize,
-                       -0.25*(yprefactorb+1)
-                       +gsl_matrix_get(edmatrix,site,ynegneighbour+systemsize));//b_l^\dagger b_{l-1}^\dagger
+    gsl_matrix_set(edmatrix,x*ysize+y,x*ysize+y,0.5*xprefactora+epsilon+gsl_matrix_get(edmatrix,x*ysize+y,x*ysize+y));//b_l^\dagger b_{l}
+    gsl_matrix_set(edmatrix,x*ysize+y,x*ysize+y,0.5*xprefactorb+epsilon+gsl_matrix_get(edmatrix,x*ysize+y,x*ysize+y));//b_l^\dagger b_{l}
     
-    gsl_matrix_set(edmatrix,yposneighbour,site+systemsize,
-                       -0.25*(yprefactora+1)
-                       +gsl_matrix_get(edmatrix,yposneighbour,site+systemsize));//b_{l+1}^\dagger b_l^\dagger
-        
-    gsl_matrix_set(edmatrix,ynegneighbour,site+systemsize,
-                       -0.25*(yprefactorb+1)
-                       +gsl_matrix_get(edmatrix,ynegneighbour,site+systemsize));//b_{l-1}^\dagger b_l^\dagger
+    gsl_matrix_set(edmatrix,x*ysize+y,x*ysize+y,0.5*yprefactora+epsilon+gsl_matrix_get(edmatrix,x*ysize+y,x*ysize+y));//b_l^\dagger b_{l}
+    gsl_matrix_set(edmatrix,x*ysize+y,x*ysize+y,0.5*yprefactorb+epsilon+gsl_matrix_get(edmatrix,x*ysize+y,x*ysize+y));//b_l^\dagger b_{l}
+    
+    gsl_matrix_set(edmatrix,x*ysize+y,xafter*ysize+y+systemsize,0.25*(xprefactora+1)+gsl_matrix_get(edmatrix,x*ysize+y,xafter*ysize+y+systemsize));//b_l^\dagger b_{l+1}^\dagger
+    gsl_matrix_set(edmatrix,x*ysize+y,xbefore*ysize+y+systemsize,0.25*(xprefactorb+1)+gsl_matrix_get(edmatrix,x*ysize+y,xbefore*ysize+y+systemsize));//b_l^\dagger b_{l-1}^\dagger
+    
+    gsl_matrix_set(edmatrix,xafter*ysize+y,x*ysize+y+systemsize,0.25*(xprefactora+1)+gsl_matrix_get(edmatrix,xafter*ysize+y,x*ysize+y+systemsize));//b_{l+1}^\dagger b_l^\dagger
+    gsl_matrix_set(edmatrix,xbefore*ysize+y,x*ysize+y+systemsize,0.25*(xprefactorb+1)+gsl_matrix_get(edmatrix,xbefore*ysize+y,x*ysize+y+systemsize));//b_{l-1}^\dagger b_l^\dagger
+    
+    gsl_matrix_set(edmatrix,x*ysize+y,x*ysize+yafter+systemsize,0.25*(yprefactora+1)+gsl_matrix_get(edmatrix,x*ysize+y,x*ysize+yafter+systemsize));//b_l^\dagger b_{l+1}^\dagger
+    gsl_matrix_set(edmatrix,x*ysize+y,x*ysize+ybefore+systemsize,0.25*(yprefactorb+1)+gsl_matrix_get(edmatrix,x*ysize+y,x*ysize+ybefore+systemsize));//b_l^\dagger b_{l-1}^\dagger
+    
+    gsl_matrix_set(edmatrix,x*ysize+yafter,x*ysize+y+systemsize,0.25*(yprefactora+1)+gsl_matrix_get(edmatrix,x*ysize+yafter,x*ysize+y+systemsize));//b_{l+1}^\dagger b_l^\dagger
+    gsl_matrix_set(edmatrix,x*ysize+ybefore,x*ysize+y+systemsize,0.25*(yprefactorb+1)+gsl_matrix_get(edmatrix,x*ysize+ybefore,x*ysize+y+systemsize));//b_{l-1}^\dagger b_l^\dagger
     
     //add complex conjugated elements
     for(int i=0;i<systemsize;i++){
